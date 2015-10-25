@@ -1,0 +1,4 @@
+Package @PACKAGE_NAME@ has been pushed to the @RELEASE_NAME@ testing repository for @DIST@ template. If you want to test the update, you can install it with:
+```
+sudo yum update --enablerepo=qubes-vm-@RELEASE_NAME@-current-testing
+```

@@ -1,0 +1,4 @@
+Package @PACKAGE_NAME@ has been pushed to the @RELEASE_NAME@ stable repository for Fedora @DIST@ template. If you want to install the update, follow the standard update path, for example:
+```
+sudo yum update
+```

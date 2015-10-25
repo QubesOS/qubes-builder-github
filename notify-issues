@@ -1,0 +1,182 @@
+#!/usr/bin/python2
+# coding=utf-8
+#
+# The Qubes OS Project, https://www.qubes-os.org/
+#
+# Copyright (C) 2015
+#       Marek Marczykowski-Górecki <marmarek@invisiblethingslab.com>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, write to the Free Software Foundation, Inc.,
+# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+#
+
+from argparse import ArgumentParser
+import os
+import subprocess
+import sys
+import re
+import requests
+
+github_repo = "QubesOS/qubes-issues"
+github_api_prefix = "https://api.github.com/repos/{}".format(github_repo)
+
+fixes_re = re.compile(r"(fixes|closes)( (https://github.com/[^ ]+/|"
+                      r"QubesOS/Qubes-issues#)[0-9]+)",
+                      re.IGNORECASE)
+cleanup_re = re.compile(r"[^ ]+[#/]")
+
+release_name_re = re.compile("r[0-9.]+")
+
+def main():
+
+    epilog = "When state_file doesn't exists, no notify is sent, but the " \
+             "current state is recorded"
+
+    parser = ArgumentParser(epilog=epilog)
+    parser.add_argument("release_name",
+                        help="Release name, for example r3.0")
+    parser.add_argument("repo_type",
+                        help="Repository type",
+                        choices=['current', 'current-testing',
+                                 'security-testing', 'unstable'])
+    parser.add_argument("src_dir",
+                        help="Component sources path")
+    parser.add_argument("package_name",
+                        help="Binary package name")
+    parser.add_argument("dist",
+                        help="Distribution release code name")
+    parser.add_argument("package_set",
+                        choices=['dom0', 'vm'])
+    parser.add_argument("state_file",
+                        help="File to store internal state (previous commit "
+                             "id)")
+    parser.add_argument("--auth-token",
+                        help="Github authentication token (OAuth2)")
+    args = parser.parse_args()
+
+    auth_headers = {}
+    if args.auth_token:
+        auth_headers['Authorization'] = \
+            'token {}'.format(args.auth_token)
+    elif 'GITHUB_API_KEY' in os.environ:
+        auth_headers['Authorization'] = \
+            'token {}'.format(os.environ['GITHUB_API_KEY'])
+
+    delete_label = None
+    if args.repo_type == 'current':
+        repo_type = 'stable'
+        delete_label = "{}-{}-testing".format(args.release_name, args.dist)
+        add_label = "{}-{}-stable".format(args.release_name, args.dist)
+    elif args.repo_type == 'current-testing':
+        add_label = "{}-{}-testing".format(args.release_name, args.dist)
+        repo_type = 'testing'
+    else:
+        print "Ignoring {}".format(args.repo_type)
+        return
+
+    if not release_name_re.match(args.release_name):
+        print "Ignoring release {}".format(args.release_name)
+        return
+
+    git_proc = subprocess.Popen(
+        ['git', '-C', args.src_dir, 'log', '-n', '1', '--pretty=format:%H'],
+        stdout=subprocess.PIPE)
+    (current_commit, _) = git_proc.communicate()
+    current_commit = current_commit.strip()
+    if not os.path.exists(args.state_file):
+        print "WARNING: {} does not exist, initializing with the " \
+              "current state".format(args.state_file)
+        with open(args.state_file, 'w') as f:
+            f.write(current_commit)
+        return
+    else:
+        with open(args.state_file, 'r') as f:
+            previous_commit = f.readline().strip()
+
+    message_template_path = "{}/message-{}-{}".format(
+        os.path.dirname(sys.argv[0]),
+        repo_type,
+        args.package_set)
+
+    if os.path.exists(message_template_path + "-" + args.dist):
+        message_template_path = message_template_path + "-" + args.dist
+
+    if not os.path.exists(message_template_path):
+        print "ERROR: message template {} doesn't exist".format(
+            message_template_path)
+        sys.exit(1)
+
+    git_log_proc = subprocess.Popen(
+        ['git', '-C', args.src_dir, 'log', '{}..{}'.format(previous_commit,
+                                                           current_commit)],
+        stdout=subprocess.PIPE)
+    (git_log, _) = git_log_proc.communicate()
+    closed_issues = []
+    for line in git_log.splitlines():
+        match = fixes_re.search(line)
+        if match:
+            issues_string = match.group(0)
+            issues_numbers = map(lambda s: int(cleanup_re.sub("", s)),
+                                 issues_string.split()[1:])
+            closed_issues.extend(issues_numbers)
+
+    closed_issues = set(closed_issues)
+
+    for issue in closed_issues:
+        print "Adding a comment to issue #{}".format(issue)
+        message = open(message_template_path, 'r').read().\
+            replace("@DIST@", args.dist).\
+            replace("@PACKAGE_SET@", args.package_set).\
+            replace("@PACKAGE_NAME@", args.package_name).\
+            replace("@COMPONENT@", os.environ['COMPONENT']).\
+            replace("@REPOSITORY@", repo_type).\
+            replace("@RELEASE_NAME@", args.release_name)
+
+        resp = requests.post("{}/issues/{}/comments".format(
+            github_api_prefix,
+            issue),
+            json={'body': message},
+            headers=auth_headers)
+        if not resp.ok:
+            print "WARNING: failed to create comment on {}: {} {}".format(
+                issue, resp.status_code, resp.content)
+        if delete_label:
+            resp = requests.delete("{}/issues/{}/labels/{}".format(
+                github_api_prefix,
+                issue,
+                delete_label
+                ),
+                headers=auth_headers)
+            # ignore 404 error - most likely package was uploaded to testing
+            # before introducing this mechanism
+            if not resp.ok and resp.status_code != 404:
+                print "WARNING: failed to delete {} label from issue {}: " \
+                      "{} {}".format(delete_label, issue,
+                                     resp.status_code, resp.content)
+        if add_label:
+            resp = requests.post("{}/issues/{}/labels".format(
+                github_api_prefix, issue),
+                json=[add_label],
+                headers=auth_headers)
+            if not resp.ok:
+                print "WARNING: failed to add {} label to issue {}: {} {}".\
+                    format(add_label, issue,
+                           resp.status_code, resp.content)
+
+    with open(args.state_file, 'w') as f:
+        f.write(current_commit)
+
+
+if __name__ == '__main__':
+    main()

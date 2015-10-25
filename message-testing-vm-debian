@@ -1,0 +1,4 @@
+Package @PACKAGE_NAME@ has been pushed to the @RELEASE_NAME@ testing repository for Debian @DIST@ template. If you want to test the update, you can enable testing repository in `/etc/apt/sources.list.d/qubes-*.list` by uncommenting the line with `@DIST@-testing`. Then follow the standard update procedure, for example:
+```
+sudo apt-get update && sudo apt-get dist-upgrade
+```

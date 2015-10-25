@@ -1,0 +1,5 @@
+Package @PACKAGE_NAME@ has been pushed to the @RELEASE_NAME@ stable repository for dom0. If you want to installi the update, follow standard update instructions. Command line:
+```
+sudo qubes-dom0-update
+```
+Or call dom0 update from Qubes Manager.
