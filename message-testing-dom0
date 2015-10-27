@@ -1,4 +1,9 @@
-Package @PACKAGE_NAME@ has been pushed to the @RELEASE_NAME@ testing repository for dom0. If you want to test the update, you can install it with:
+**Automated announcement from [builder-github]**
+
+The package `@PACKAGE_NAME@` has been pushed to the `@RELEASE_NAME@` testing repository for dom0.
+To test this update, please install it with the following command:
 ```
 sudo qubes-dom0-update --enablerepo=qubes-dom0-current-testing
 ```
+
+[builder-github]: https://github.com/QubesOS/qubes-builder-github
