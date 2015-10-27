@@ -1,4 +1,10 @@
-Package @PACKAGE_NAME@ has been pushed to the @RELEASE_NAME@ stable repository for Debian @DIST@ template. If you want to install the update simply follow the standard update procedure, for example:
+**Automated announcement from [builder-github]**
+
+The package `@PACKAGE_NAME@` has been pushed to the `@RELEASE_NAME@`
+stable repository for the Debian `@DIST@` template.
+To install this update, please use the standard update command:
 ```
 sudo apt-get update && sudo apt-get dist-upgrade
 ```
+
+[builder-github]: https://github.com/QubesOS/qubes-builder-github
