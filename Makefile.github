@@ -1,7 +1,11 @@
 
 update-repo: notify-github
+update-repo-from-snapshot: bracket = )
+update-repo-from-snapshot: coma = ,
+update-repo-from-snapshot: release_name_dist_tmp = $(word 3,$(pkg_filter))_$(word 6,$(pkg_filter))
+update-repo-from-snapshot: release_name_dist = $(subst $(coma),,$(subst $(bracket),,$(release_name_dist_tmp)))
+update-repo-from-snapshot: notify-github
 
-notify-github: test=$(info test: $(UPDATE_REPO))
 notify-github: repo_words=$(subst /, ,$(UPDATE_REPO))
 notify-github: repo_type=$(word $(shell expr $(words $(repo_words)) - 2),$(repo_words))
 notify-github: release_name=$(word $(shell expr $(words $(repo_words)) - 3),$(repo_words))
