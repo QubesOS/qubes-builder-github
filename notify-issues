@@ -74,12 +74,15 @@ def main():
             'token {}'.format(os.environ['GITHUB_API_KEY'])
 
     delete_label = None
+    dist_label = args.dist
+    if args.package_set == 'dom0':
+        dist_label = 'dom0'
     if args.repo_type == 'current':
         repo_type = 'stable'
-        delete_label = "{}-{}-testing".format(args.release_name, args.dist)
-        add_label = "{}-{}-stable".format(args.release_name, args.dist)
+        delete_label = "{}-{}-testing".format(args.release_name, dist_label)
+        add_label = "{}-{}-stable".format(args.release_name, dist_label)
     elif args.repo_type == 'current-testing':
-        add_label = "{}-{}-testing".format(args.release_name, args.dist)
+        add_label = "{}-{}-testing".format(args.release_name, dist_label)
         repo_type = 'testing'
     else:
         print "Ignoring {}".format(args.repo_type)

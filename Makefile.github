@@ -25,4 +25,4 @@ notify-github:
 		"$(pkg_name)" \
 		"$(DIST)" \
 		"$(PACKAGE_SET)" \
-		"$(GITHUB_STATE_DIR)/$(release_name)-$(COMPONENT)-$(DIST)-$(repo_type)"
+		"$(GITHUB_STATE_DIR)/$(release_name)-$(COMPONENT)-$(PACKAGE_SET)-$(DIST)-$(repo_type)"
