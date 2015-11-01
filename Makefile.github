@@ -12,7 +12,7 @@ notify-github: release_name=$(word $(shell expr $(words $(repo_words)) - 3),$(re
 ifeq ($(DISTRIBUTION),fedora)
 notify-github: pkg_name=$(basename $(basename $(notdir $(firstword $(packages)))))
 else ifneq (,$(findstring $(DISTRIBUTION), debian qubuntu))
-notify-github: pkg_name=$(release_name_dist)
+notify-github: pkg_name=$(firstword $(release_name_dist) $(release_name_full))
 else
     $(error Distribution $(DISTRIBUTION) not supported by builder-github plugin)
 endif
