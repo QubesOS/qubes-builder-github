@@ -30,6 +30,8 @@ import requests
 
 github_repo = "QubesOS/qubes-issues"
 github_api_prefix = "https://api.github.com/repos/{}".format(github_repo)
+github_repo_prefix = "QubesOS/qubes-"
+github_baseurl = "https://github.com/"
 
 fixes_re = re.compile(r"(fixes|closes)( (https://github.com/[^ ]+/|"
                       r"QubesOS/Qubes-issues#)[0-9]+)",
@@ -136,6 +138,24 @@ def main():
 
     closed_issues = set(closed_issues)
 
+    git_log_proc = subprocess.Popen(
+        ['git', '-C', args.src_dir, 'log',
+         '--pretty=format:{}-{}@%h %s'.format(
+             github_repo_prefix,
+             os.path.basename(args.src_dir)),
+         '{}..{}'.format(previous_commit, current_commit)],
+        stdout=subprocess.PIPE)
+    (shortlog, _) = git_log_proc.communicate()
+
+    git_log_url = \
+        "{base}{prefix}{repo}/compare/{prev_commit}...{curr_commit}".format(
+            base=github_baseurl,
+            prefix=github_repo_prefix,
+            repo=os.path.basename(args.src_dir),
+            prev_commit=previous_commit,
+            curr_commit=current_commit
+        )
+
     for issue in closed_issues:
         print "Adding a comment to issue #{}".format(issue)
         message = open(message_template_path, 'r').read().\
@@ -144,7 +164,9 @@ def main():
             replace("@PACKAGE_NAME@", args.package_name).\
             replace("@COMPONENT@", os.environ['COMPONENT']).\
             replace("@REPOSITORY@", repo_type).\
-            replace("@RELEASE_NAME@", args.release_name)
+            replace("@RELEASE_NAME@", args.release_name).\
+            replace("@GIT_LOG@", shortlog).\
+            replace("@GIT_LOG_URL@", git_log_url)
 
         resp = requests.post("{}/issues/{}/comments".format(
             github_api_prefix,

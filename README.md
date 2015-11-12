@@ -44,6 +44,8 @@ Each file is actually message template, which can contain following placeholders
  * `@COMPONENT@` - Qubes component name (as listed in `COMPONENTS` setting of `builder.conf`)
  * `@REPOSITORY@` - either `testing` or `stable`
  * `@RELEASE_NAME@` - name of target Qubes release (`r2`, `r3.0` etc)
+ * `@GIT_LOG@` - `git log --pretty=oneline previous_commit..current_commit` with github-like commits refrences
+ * `@GIT_LOG_URL` - Github URL to commits between previous version and the current one. "compare" github feature.
 
 
 Ideally the message should include instrution how to install the update.
