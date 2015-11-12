@@ -5,5 +5,7 @@ To test this update, first enable the testing repository in `/etc/apt/sources.li
 ```
 sudo apt-get update && sudo apt-get dist-upgrade
 ```
+[Changes included in this update][commits]
 
 [builder-github]: https://github.com/QubesOS/qubes-builder-github
+[commits]: @GIT_LOG_URL@

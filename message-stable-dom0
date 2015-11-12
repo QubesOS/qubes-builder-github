@@ -7,4 +7,7 @@ sudo qubes-dom0-update
 ```
 Or update dom0 via Qubes Manager.
 
+[Changes included in this update][commits]
+
 [builder-github]: https://github.com/QubesOS/qubes-builder-github
+[commits]: @GIT_LOG_URL@

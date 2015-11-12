@@ -5,5 +5,7 @@ To install this update, please use the standard update command:
 ```
 sudo yum update
 ```
+[Changes included in this update][commits]
 
 [builder-github]: https://github.com/QubesOS/qubes-builder-github
+[commits]: @GIT_LOG_URL@
