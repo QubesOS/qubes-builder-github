@@ -40,75 +40,10 @@ cleanup_re = re.compile(r"[^ ]+[#/]")
 
 release_name_re = re.compile("r[0-9.]+")
 
-def main():
 
-    epilog = "When state_file doesn't exists, no notify is sent, but the " \
-             "current state is recorded"
-
-    parser = ArgumentParser(epilog=epilog)
-    parser.add_argument("release_name",
-                        help="Release name, for example r3.0")
-    parser.add_argument("repo_type",
-                        help="Repository type",
-                        choices=['current', 'current-testing',
-                                 'security-testing', 'unstable'])
-    parser.add_argument("src_dir",
-                        help="Component sources path")
-    parser.add_argument("package_name",
-                        help="Binary package name")
-    parser.add_argument("dist",
-                        help="Distribution release code name")
-    parser.add_argument("package_set",
-                        choices=['dom0', 'vm'])
-    parser.add_argument("state_file",
-                        help="File to store internal state (previous commit "
-                             "id)")
-    parser.add_argument("--auth-token",
-                        help="Github authentication token (OAuth2)")
-    args = parser.parse_args()
-
-    auth_headers = {}
-    if args.auth_token:
-        auth_headers['Authorization'] = \
-            'token {}'.format(args.auth_token)
-    elif 'GITHUB_API_KEY' in os.environ:
-        auth_headers['Authorization'] = \
-            'token {}'.format(os.environ['GITHUB_API_KEY'])
-
-    delete_label = None
-    dist_label = args.dist
-    if args.package_set == 'dom0':
-        dist_label = 'dom0'
-    if args.repo_type == 'current':
-        repo_type = 'stable'
-        delete_label = "{}-{}-testing".format(args.release_name, dist_label)
-        add_label = "{}-{}-stable".format(args.release_name, dist_label)
-    elif args.repo_type == 'current-testing':
-        add_label = "{}-{}-testing".format(args.release_name, dist_label)
-        repo_type = 'testing'
-    else:
-        print "Ignoring {}".format(args.repo_type)
-        return
-
-    if not release_name_re.match(args.release_name):
-        print "Ignoring release {}".format(args.release_name)
-        return
-
-    git_proc = subprocess.Popen(
-        ['git', '-C', args.src_dir, 'log', '-n', '1', '--pretty=format:%H'],
-        stdout=subprocess.PIPE)
-    (current_commit, _) = git_proc.communicate()
-    current_commit = current_commit.strip()
-    if not os.path.exists(args.state_file):
-        print "WARNING: {} does not exist, initializing with the " \
-              "current state".format(args.state_file)
-        with open(args.state_file, 'w') as f:
-            f.write(current_commit)
-        return
-    else:
-        with open(args.state_file, 'r') as f:
-            previous_commit = f.readline().strip()
-
+def notify_closed_issues(args, repo_type, auth_headers,
+        current_commit, previous_commit,
+        add_label, delete_label):
     message_template_path = "{}/message-{}-{}".format(
         os.path.dirname(sys.argv[0]),
         repo_type,
@@ -198,6 +133,79 @@ def main():
                 print "WARNING: failed to add {} label to issue {}: {} {}".\
                     format(add_label, issue,
                            resp.status_code, resp.content)
+
+
+def main():
+    epilog = "When state_file doesn't exists, no notify is sent, but the " \
+             "current state is recorded"
+
+    parser = ArgumentParser(epilog=epilog)
+    parser.add_argument("release_name",
+                        help="Release name, for example r3.0")
+    parser.add_argument("repo_type",
+                        help="Repository type",
+                        choices=['current', 'current-testing',
+                                 'security-testing', 'unstable'])
+    parser.add_argument("src_dir",
+                        help="Component sources path")
+    parser.add_argument("package_name",
+                        help="Binary package name")
+    parser.add_argument("dist",
+                        help="Distribution release code name")
+    parser.add_argument("package_set",
+                        choices=['dom0', 'vm'])
+    parser.add_argument("state_file",
+                        help="File to store internal state (previous commit "
+                             "id)")
+    parser.add_argument("--auth-token",
+                        help="Github authentication token (OAuth2)")
+    parser.add_argument("--build-log",
+                        help="Build log name in build-logs repository")
+    args = parser.parse_args()
+
+    auth_headers = {}
+    if args.auth_token:
+        auth_headers['Authorization'] = \
+            'token {}'.format(args.auth_token)
+    elif 'GITHUB_API_KEY' in os.environ:
+        auth_headers['Authorization'] = \
+            'token {}'.format(os.environ['GITHUB_API_KEY'])
+
+    delete_label = None
+    dist_label = args.dist
+    if args.package_set == 'dom0':
+        dist_label = 'dom0'
+    if args.repo_type == 'current':
+        repo_type = 'stable'
+        delete_label = "{}-{}-testing".format(args.release_name, dist_label)
+        add_label = "{}-{}-stable".format(args.release_name, dist_label)
+    elif args.repo_type == 'current-testing':
+        add_label = "{}-{}-testing".format(args.release_name, dist_label)
+        repo_type = 'testing'
+    else:
+        print "Ignoring {}".format(args.repo_type)
+        return
+
+    if not release_name_re.match(args.release_name):
+        print "Ignoring release {}".format(args.release_name)
+        return
+
+    git_proc = subprocess.Popen(
+        ['git', '-C', args.src_dir, 'log', '-n', '1', '--pretty=format:%H'],
+        stdout=subprocess.PIPE)
+    (current_commit, _) = git_proc.communicate()
+    current_commit = current_commit.strip()
+    if not os.path.exists(args.state_file):
+        print "WARNING: {} does not exist, initializing with the " \
+              "current state".format(args.state_file)
+        previous_commit = None
+    else:
+        with open(args.state_file, 'r') as f:
+            previous_commit = f.readline().strip()
+
+    if previous_commit is not None:
+        notify_closed_issues(args, repo_type, current_commit,
+            previous_commit, add_label, delete_label)
 
     with open(args.state_file, 'w') as f:
         f.write(current_commit)
