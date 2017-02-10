@@ -220,11 +220,17 @@ def notify_closed_issues(args, repo_type,
         stdout=subprocess.PIPE)
     (shortlog, _) = git_log_proc.communicate()
 
-    git_log_url = \
-        "{base}{prefix}{repo}/compare/{prev_commit}...{curr_commit}".format(
+    git_url_var = 'GIT_URL_' + os.path.basename(args.src_dir).replace('-', '_')
+    if git_url_var in os.environ:
+        git_url = git_url_var
+    else:
+        git_url = "{base}/{prefix}{repo}".format(
             base=github_baseurl,
             prefix=github_repo_prefix,
-            repo=os.path.basename(args.src_dir),
+            repo=os.path.basename(args.src_dir))
+    git_log_url = \
+        "{git_url}/compare/{prev_commit}...{curr_commit}".format(
+            git_url=git_url,
             prev_commit=previous_commit,
             curr_commit=current_commit
         )
