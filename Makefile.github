@@ -19,6 +19,7 @@ endif
 
 notify-github:
 	[ -z "$(pkg_name)" ] || $(BUILDER_GITHUB_DIR)/notify-issues \
+		--build-log="$(BUILD_LOG_URL)" \
 		"$(release_name)" \
 		"$(repo_type)" \
 		"$(ORIG_SRC)" \

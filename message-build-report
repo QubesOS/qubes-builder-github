@@ -1,0 +1,3 @@
+Update of @COMPONENT@ to @VERSION@ for Qubes @RELEASE_NAME@, see comments below for details.
+
+Built from: @GIT_URL@/commit/@COMMIT_SHA@
