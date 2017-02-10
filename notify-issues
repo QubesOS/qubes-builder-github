@@ -28,8 +28,8 @@ import sys
 import re
 import requests
 
-github_repo = "QubesOS/qubes-issues"
-github_api_prefix = "https://api.github.com/repos/{}".format(github_repo)
+github_issues_repo = "QubesOS/qubes-issues"
+github_api_prefix = "https://api.github.com"
 github_repo_prefix = "QubesOS/qubes-"
 github_baseurl = "https://github.com/"
 
@@ -37,11 +37,48 @@ fixes_re = re.compile(r"(fixes|closes)( (https://github.com/[^ ]+/|"
                       r"QubesOS/Qubes-issues#)[0-9]+)",
                       re.IGNORECASE)
 cleanup_re = re.compile(r"[^ ]+[#/]")
-
 release_name_re = re.compile("r[0-9.]+")
 
+auth_headers = {}
 
-def notify_closed_issues(args, repo_type, auth_headers,
+
+def comment_issue(issue, message, add_label, delete_label,
+        github_repo=github_issues_repo):
+    resp = requests.post("{}/repos/{}/issues/{}/comments".format(
+        github_api_prefix,
+        github_repo,
+        issue),
+        json={'body': message},
+        headers=auth_headers)
+    if not resp.ok:
+        print "WARNING: failed to create comment on {}: {} {}".format(
+            issue, resp.status_code, resp.content)
+    if delete_label:
+        resp = requests.delete("{}/repos/{}/issues/{}/labels/{}".format(
+            github_api_prefix,
+            github_repo,
+            issue,
+            delete_label
+        ),
+            headers=auth_headers)
+        # ignore 404 error - most likely package was uploaded to testing
+        # before introducing this mechanism
+        if not resp.ok and resp.status_code != 404:
+            print "WARNING: failed to delete {} label from issue {}: " \
+                  "{} {}".format(delete_label, issue,
+                resp.status_code, resp.content)
+    if add_label:
+        resp = requests.post("{}/repos/{}/issues/{}/labels".format(
+            github_api_prefix, github_repo, issue),
+            json=[add_label],
+            headers=auth_headers)
+        if not resp.ok:
+            print "WARNING: failed to add {} label to issue {}: {} {}". \
+                format(add_label, issue,
+                resp.status_code, resp.content)
+
+
+def notify_closed_issues(args, repo_type,
         current_commit, previous_commit,
         add_label, delete_label):
     message_template_path = "{}/message-{}-{}".format(
@@ -103,39 +140,11 @@ def notify_closed_issues(args, repo_type, auth_headers,
             replace("@GIT_LOG@", shortlog).\
             replace("@GIT_LOG_URL@", git_log_url)
 
-        resp = requests.post("{}/issues/{}/comments".format(
-            github_api_prefix,
-            issue),
-            json={'body': message},
-            headers=auth_headers)
-        if not resp.ok:
-            print "WARNING: failed to create comment on {}: {} {}".format(
-                issue, resp.status_code, resp.content)
-        if delete_label:
-            resp = requests.delete("{}/issues/{}/labels/{}".format(
-                github_api_prefix,
-                issue,
-                delete_label
-                ),
-                headers=auth_headers)
-            # ignore 404 error - most likely package was uploaded to testing
-            # before introducing this mechanism
-            if not resp.ok and resp.status_code != 404:
-                print "WARNING: failed to delete {} label from issue {}: " \
-                      "{} {}".format(delete_label, issue,
-                                     resp.status_code, resp.content)
-        if add_label:
-            resp = requests.post("{}/issues/{}/labels".format(
-                github_api_prefix, issue),
-                json=[add_label],
-                headers=auth_headers)
-            if not resp.ok:
-                print "WARNING: failed to add {} label to issue {}: {} {}".\
-                    format(add_label, issue,
-                           resp.status_code, resp.content)
+        comment_issue(issue, message, add_label, delete_label)
 
 
 def main():
+    global auth_headers
     epilog = "When state_file doesn't exists, no notify is sent, but the " \
              "current state is recorded"
 
@@ -163,7 +172,6 @@ def main():
                         help="Build log name in build-logs repository")
     args = parser.parse_args()
 
-    auth_headers = {}
     if args.auth_token:
         auth_headers['Authorization'] = \
             'token {}'.format(args.auth_token)
