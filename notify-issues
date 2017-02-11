@@ -321,6 +321,7 @@ def main():
             'token {}'.format(os.environ['GITHUB_API_KEY'])
 
     delete_label = None
+    add_label = None
     dist_label = args.dist
     if args.package_set == 'dom0':
         dist_label = 'dom0'
@@ -331,6 +332,8 @@ def main():
     elif args.repo_type == 'current-testing':
         add_label = "{}-{}-testing".format(args.release_name, dist_label)
         repo_type = 'testing'
+    elif args.repo_type == 'security-testing':
+        repo_type = 'security-testing'
     else:
         print "Ignoring {}".format(args.repo_type)
         return
@@ -353,8 +356,9 @@ def main():
             previous_commit = f.readline().strip()
 
     if previous_commit is not None:
-        notify_closed_issues(args, repo_type, current_commit,
-            previous_commit, add_label, delete_label)
+        if repo_type in ['stable', 'testing']:
+            notify_closed_issues(args, repo_type, current_commit,
+                previous_commit, add_label, delete_label)
 
     with open(args.state_file, 'w') as f:
         f.write(current_commit)
