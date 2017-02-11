@@ -1,0 +1,188 @@
+#!/bin/sh
+
+# Service called from network-exposed VM (probably sys-net) into actual build
+# VM to (potentially) trigger moving packages from current-testing to current
+# repository.
+#
+# Service input should consists of inline GPG-signed message with just one line:
+#
+#    "Upload" component_name commit_sha release_name "current" (dists) "repo"
+#
+# (words in quotes are verbatim - without quotes, others are parameters)
+#
+# See README.md for detailed description.
+
+set -e
+
+keyring_path="~/.config/qubes-builder-github/trusted-keys-for-commands.gpg"
+# load list of qubes-builder instances
+config_file="$HOME/.config/qubes-builder-github/builders.list"
+
+# enable logging (use qrexec policy to redirect to the right VM)
+export QUBES_BUILD_LOG_CMD="qrexec-client-vm 'dom0' qubesbuilder.BuildLog"
+
+# don't return anything; log it locally, just in case
+mkdir -p $HOME/builder-github-logs
+log_basename="$HOME/builder-github-logs/$(date +%s)-$$"
+exec >>${log_basename}.log 2>&1
+
+tmpdir=$(mktemp -d)
+# setup cleanup
+trap "rm -rf $tmpdir" EXIT
+
+# this will read from standard input of the service, the data should be
+# considered untrusted
+awk -b -v in_command=0 -v in_signature=0 "
+    /^-----BEGIN PGP SIGNED MESSAGE-----$/ {
+        # skip first 3 lines (this one, hash declaration and empty line)
+        in_command=4
+    }
+    /^-----BEGIN PGP SIGNATURE-----$/ { 
+        in_command=0
+        in_signature=1
+    }
+    {
+        if (in_command > 1) {
+            in_command--
+            next
+        }
+    }
+    {
+        if (in_command) print >\"$tmpdir/untrusted_command.tmp\"
+        if (in_signature) print >\"$tmpdir/untrusted_command.sig\"
+    }
+    /^-----END PGP SIGNATURE-----$/ {
+        in_signature=0
+    }
+"
+
+# make sure we don't read anything else from stdin
+exec </dev/null
+
+if [ ! -r "$tmpdir/untrusted_command.tmp" -o \
+     ! -r "$tmpdir/untrusted_command.sig" ]; then
+    echo "Missing parts of gpg signature" >&2
+    exit 1
+fi
+
+# gpg --clearsign apparently ignore trailing newline while calculating hash. So
+# must do the same here for signature verification. This is stupid.
+head -c -1 "$tmpdir/untrusted_command.tmp" > "$tmpdir/untrusted_command"
+
+if ! gpgv2 --keyring "$keyring_path" "$tmpdir/untrusted_command.sig" "$tmpdir/untrusted_command"; then
+    echo "Invalid signature" >&2
+    exit 1
+fi
+
+# now, take the first line of already verified file
+head -n 1 "$tmpdir/untrusted_command" > "$tmpdir/command"
+# add trailing newline back
+echo "" >> "$tmpdir/command"
+
+# log the command
+echo -n "Command: " >&2
+cat "$tmpdir/command" >&2
+
+read action component commit_sha release_name repo_name dists_and_end \
+        < "$tmpdir/command"
+
+if [ "x$action" != "xUpload" ]; then
+    echo "Unsupported action" >&2
+    exit 1
+fi
+
+# look for a builder instance for this release
+builder_dir=$(grep "^$release_name" "$config_file" | head -n 1 | cut -f 2 -d =)
+
+if [ -z "$builder_dir" ]; then
+    echo "Builder for $release_name not configured in this VM" >&2
+    # maybe it's in another VM?
+    exit 0
+fi
+
+if ! [ -d "$builder_dir" ]; then
+    echo "Builder $builder_dir does not exist" >&2
+    exit 1
+fi
+
+case "${component}" in
+    *[/.\ ]*)
+        echo "Forbidden character in component name" >&2
+        exit 1
+        ;;
+    "")
+        echo "Empty component name" >&2
+        exit 1
+        ;;
+esac
+
+# at this point it's important to have only one instance running (and no build
+# process running), so take a lock; also go into background, as this may take
+# some time
+(
+    exec 9> "$builder_dir/builder.lock"
+    flock -x 9
+    
+    if ! [ -d "$builder_dir/qubes-src/$component" ]; then
+        echo "Component $component not found in $builder_dir" >&2
+        # maybe it's in another VM?
+        exit 0
+    fi
+
+    actual_commit_sha=$(git -C "$builder_dir/qubes-src/$component" rev-parse HEAD)
+    if [ "x$commit_sha" != "x$actual_commit_sha" ]; then
+        echo "Repository have changed in the meantime (current: $actual_commit_sha)" >&2
+        exit 1
+    fi
+
+    if [ "x$repo_name" != "xcurrent" -a "x$repo_name" != "xsecurity-testing" ]; then
+        echo "Unsupported target repo" >&2
+        exit 1
+    fi
+
+
+    # if no specific distribution was requested, upload all of them
+    if [ "x$dists_and_end" == "repo" ]; then
+        COMPONENTS="$component" \
+        "$builder_dir/scripts/make-with-log" \
+            update-repo-$repo_name
+        exit $?
+    fi
+
+    # otherwise, process repositories list
+    requested_dists_dom0=
+    requested_dists_vm=
+    supported_dists_dom0=$(make -C "$builder_dir" get-var GET_VAR=DIST_DOM0)
+    supported_dists_vm=$(make -C "$builder_dir" get-var GET_VAR=DISTS_VM_NO_FLAVOR)
+    for dist_pair in $dists_and_end; do
+        package_set=${dist_pair%%-*}
+        dist=${dist_pair#*-}
+        if [ "x$package_set" == "xdom0" ]; then
+            if echo " $supported_dists_dom0 " | grep -q " $dist "; then
+                requested_dists_dom0="$requested_dists_dom0 $dist"
+            fi
+            # don't fail otherwise - maybe builder in other VM will handle it
+        elif [ "x$package_set" == "xvm" ]; then
+            if echo " $supported_dists_vm " | grep -q " $dist "; then
+                requested_dists_vm="$requested_dists_vm $dist"
+            fi
+            # don't fail otherwise - maybe builder in other VM will handle it
+        elif [ "x$dist_pair" == "repo" ]; then
+            # end processing here
+            break
+        fi
+    done
+
+    # strip leading spaces
+    requested_dists_vm=$(echo $requested_dists_vm)
+    requested_dists_dom0=$(echo $requested_dists_dom0)
+
+    if [ -n "$requested_dists_vm" -o -n "$requested_dists_dom0" ]; then
+        COMPONENTS="$component" \
+        DISTS_VM="$requested_dists_vm" \
+        DIST_DOM0="$requested_dists_dom0" \
+        "$builder_dir/scripts/make-with-log" \
+            update-repo-$repo_name
+        exit $?
+    fi
+) &

@@ -1,0 +1,65 @@
+#!/bin/sh
+
+# Service called from network-exposed VM (probably sys-net) into actual build
+# VM to (potentially) trigger a build when a properly signed version tag is
+# being pushed.
+# The only thing on the service input is component name. Then each
+# qubes-builder instance (if multiple of them) will check if actually git
+# repository (branch configured in builder.conf) contains new version tag at
+# the top.
+
+read untrusted_component_name
+# that's the only thing we read from the caller, make sure we don't accidentally
+# read anything else - close stdin
+exec </dev/null
+# also, don't return anything; log it locally, just in case
+mkdir -p $HOME/builder-github-logs
+log_basename="$HOME/builder-github-logs/$(date +%s)-$$"
+exec >>${log_basename}.log 2>&1
+
+# validate component name - forbid '/', '.' and space
+case "${untrusted_component_name}" in
+    *[/.\ ]*)
+        echo "Forbidden character" >&2
+        exit 1
+        ;;
+    "")
+        echo "Empty component name" >&2
+        exit 1
+        ;;
+esac
+# additional validation will be below - compare against "whitelist" defined as
+# directories list in qubes-src.
+
+# load list of qubes-builder instances
+config_file="$HOME/.config/qubes-builder-github/builders.list"
+
+if ! [ -r "$config_file" ]; then
+    echo "Config file $config_file missing" >&2
+    exit 1
+fi
+
+IFS="="
+while read release_name builder_dir; do
+    component=
+    if ! [ -d "$builder_dir" ]; then
+        continue;
+    fi
+
+    # we already verified if $untrusted_component_name do not contains '/' or
+    # '.', now lets check if that component really exists in this builder instance
+    if ! [ -d "$builder_dir/qubes-src/$untrusted_component_name" ]; then
+        # don't fail, because this component may be simply in different builder instance
+        continue;
+    fi
+
+    # now validated
+    component="$untrusted_component_name"
+
+    # Start a build process in subprocess (allow parallel builds in different
+    # builders) and with a lock for this builder (don't allow multiple components
+    # being built at the same time in the same builder).
+    # This is implicit queueing mechanism.
+    flock -x "$builder_dir/builder.lock" "$builder_dir/scripts/auto-build" "$component" \
+        >>"${log_basename}-${release_name}.log" 2>&1 </dev/null &
+done < "$config_file"

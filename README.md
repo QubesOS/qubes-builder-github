@@ -35,6 +35,54 @@ Optional:
    should have issue created (regardless of commenting issues mentioned in git
    log).
 
+
+RPC services configuration
+--------------------------
+
+RPC services are configured differently, because are not running from within
+qubes-builder, so don't know where to look for `builder.conf`. Instead, it look
+into `~/.config/qubes-builder-github/builders.list`. The file have a simple
+`key=value` syntax, where key is Qubes release (like `r3.2`) and value is a
+full path to qubes-builder directory.
+
+Example configuration:
+
+    r3.2=/home/user/qubes-builder-r3.2
+    r3.1=/home/user/qubes-builder-r3.1
+
+In addition to this,
+`~/.config/qubes-builder-github/trusted-keys-for-commands.gpg` contains a
+GPG keyring with public keys allowed to sign repository action commands (see below).
+
+Commands in github issues comments
+----------------------------------
+
+Issues created in repository pointed by `GITHUB_BUILD_REPORT_REPO` have one
+more purpose. Can be used to control when packages should be moved from testing
+(`current-testing`) to stable (`current`) repository. This can be achieved by
+adding GPG-signed comments there. A command consists of one line in form:
+
+    "Upload" component_name commit_sha release_name "current" dists "repo"
+
+(words in quotes should be used verbatim - without quotes, others are parameters)
+
+Parameters:
+
+  - `component_name` - name of component to handle
+  - `commit_sha` - commit SHA of that component; the command is considered only
+    if packages recently uploaded (or precisely: local git repository state)
+    matches this commit; this is mainly to prevent replay attacks
+  - `release_name` - name of release, like `r3.2`; must match name used in
+    `builders.list` configuration and name used in updates repositories
+    (apt/yum/...)
+  - `dists` - optional list of distributions to which upload should be limited;
+    this should be a (space separated) list of pairs `dom0`/`vm` and distribution
+    codename (like `fc25`), separated with `-`; for example `dom0-fc23` or
+    `vm-jessie`.
+
+Command needs to be signed with key for which public part is in
+`~/.config/qubes-builder-github/trusted-keys-for-commands.gpg` keyring.
+
 Comments text
 =============
 
@@ -63,3 +111,43 @@ Each file is actually message template, which can contain following placeholders
  * `@COMMIT_SHA@` - Commit SHA used to build the package.
 
 Ideally the message should include instrution how to install the update.
+
+Installation
+------------
+
+1. Adjust `builder.conf`, see 'Configuration' chapter above for details:
+
+        COMPONENTS += builder-github
+        BUILDER_PLUGINS += builder-github
+        # can be any directory
+        GITHUB_STATE_DIR = $(HOME)/github-notify-state
+        # put actual API key here, should have write access to qubes-issues
+        # repository (to assign labels and create issues)
+        GITHUB_API_KEY = ...
+        # optional, if configured the above API key should have write access to
+        # this one too
+        GITHUB_BUILD_REPORT_REPO = QubesOS/updates-status
+
+2. (optional) Place rpc services in `/usr/local/etc/qubes-rpc` directory of
+   build VM. There are two services:
+
+- `qubesbuilder.TriggerBuild`: Trigger a build for a given component. The
+   service will check if configured branch (according to `builder.conf`) have
+   new version tag at the top (and if it's properly signed) and only then will
+   build the component and upload package(s) to current-testing repository.
+   Service accept only component name on its standard input. See the next step
+   for actual integration with Github. See also 'RPC services configuration'
+   chapter.
+- `qubesbuilder.ProcessGithubCommand`: Process command issued as GPG inline
+   signed comment on some github issue. See 'Commands in github issues
+   comments' chapter for details. Service accept the comment body on its stdin.
+   See also 'RPC services configuration' chapter.
+
+3. (optional) Install github webhooks (see `github-webhooks` directory)
+   somewhere reachable from github.com - this probably means `sys-net` in
+   default Qubes OS installation. You need to configure a web server there to
+   launch them as CGI scripts. Then add the hook(s) to repository/organization
+   configuration on github.com. Then fill
+   `~/.config/qubes-builder-github/build-vms.list` with a list to which
+   information should be delivered (one per line). And setup qrexec policy for
+   services mentioned in point 2 to actually allow such calls.
