@@ -112,7 +112,7 @@ if ! [ -d "$builder_dir" ]; then
 fi
 
 case "${component}" in
-    *[/.\ ]*)
+    *[/.$IFS]*)
         echo "Forbidden character in component name" >&2
         exit 1
         ;;
