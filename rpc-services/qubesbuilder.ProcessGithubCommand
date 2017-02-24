@@ -122,6 +122,16 @@ case "${component}" in
         ;;
 esac
 
+case "${dists_and_end}" in
+    *repo)
+        # ok
+        ;;
+    *)
+        echo "Missing 'repo' and the command end" >&2
+        exit 1
+        ;;
+esac
+
 if [ "x$repo_name" != "xcurrent" -a "x$repo_name" != "xsecurity-testing" ]; then
     echo "Unsupported target repo" >&2
     exit 1
