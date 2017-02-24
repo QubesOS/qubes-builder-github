@@ -180,8 +180,12 @@ fi
     done
 
     # strip leading spaces
-    requested_dists_vm=$(echo $requested_dists_vm)
-    requested_dists_dom0=$(echo $requested_dists_dom0)
+    read requested_dists_vm <<EOF
+$requested_dists_vm
+EOF
+    requested_dists_dom0 <<EOF
+$requested_dists_dom0
+EOF
 
     if [ -n "$requested_dists_vm" -o -n "$requested_dists_dom0" ]; then
         COMPONENTS="$component" \
