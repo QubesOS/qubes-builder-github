@@ -33,12 +33,17 @@ trap "rm -rf $tmpdir" EXIT
 
 # this will read from standard input of the service, the data should be
 # considered untrusted
-awk -b -v in_command=0 -v in_signature=0 "
+awk -b \
+        -v in_command=0 \
+        -v in_signature=0 \
+        -v output_data="$tmpdir/untrusted_command.tmp" \
+        -v output_sig="$tmpdir/untrusted_command.sig" \
+        '
     /^-----BEGIN PGP SIGNED MESSAGE-----$/ {
         # skip first 3 lines (this one, hash declaration and empty line)
         in_command=4
     }
-    /^-----BEGIN PGP SIGNATURE-----$/ { 
+    /^-----BEGIN PGP SIGNATURE-----$/ {
         in_command=0
         in_signature=1
     }
@@ -49,13 +54,13 @@ awk -b -v in_command=0 -v in_signature=0 "
         }
     }
     {
-        if (in_command) print >\"$tmpdir/untrusted_command.tmp\"
-        if (in_signature) print >\"$tmpdir/untrusted_command.sig\"
+        if (in_command) print >output_data
+        if (in_signature) print >output_sig
     }
     /^-----END PGP SIGNATURE-----$/ {
         in_signature=0
     }
-"
+'
 
 # make sure we don't read anything else from stdin
 exec </dev/null
