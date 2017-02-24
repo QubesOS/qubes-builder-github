@@ -15,7 +15,7 @@
 
 set -e
 
-keyring_path="~/.config/qubes-builder-github/trusted-keys-for-commands.gpg"
+keyring_path="$HOME/.config/qubes-builder-github/trusted-keys-for-commands.gpg"
 # load list of qubes-builder instances
 config_file="$HOME/.config/qubes-builder-github/builders.list"
 
