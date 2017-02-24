@@ -122,13 +122,18 @@ case "${component}" in
         ;;
 esac
 
+if [ "x$repo_name" != "xcurrent" -a "x$repo_name" != "xsecurity-testing" ]; then
+    echo "Unsupported target repo" >&2
+    exit 1
+fi
+
 # at this point it's important to have only one instance running (and no build
 # process running), so take a lock; also go into background, as this may take
 # some time
 (
     exec 9> "$builder_dir/builder.lock"
     flock -x 9
-    
+
     if ! [ -d "$builder_dir/qubes-src/$component" ]; then
         echo "Component $component not found in $builder_dir" >&2
         # maybe it's in another VM?
@@ -138,11 +143,6 @@ esac
     actual_commit_sha=$(git -C "$builder_dir/qubes-src/$component" rev-parse HEAD)
     if [ "x$commit_sha" != "x$actual_commit_sha" ]; then
         echo "Repository have changed in the meantime (current: $actual_commit_sha)" >&2
-        exit 1
-    fi
-
-    if [ "x$repo_name" != "xcurrent" -a "x$repo_name" != "xsecurity-testing" ]; then
-        echo "Unsupported target repo" >&2
         exit 1
     fi
 
