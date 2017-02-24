@@ -9,6 +9,7 @@
 #    "Upload" component_name commit_sha release_name "current" (dists) "repo"
 #
 # (words in quotes are verbatim - without quotes, others are parameters)
+# Also, instead of "current", "security-testing" value is supported too.
 #
 # See README.md for detailed description.
 
