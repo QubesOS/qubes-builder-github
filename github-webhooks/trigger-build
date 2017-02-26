@@ -44,6 +44,10 @@ def handle(obj):
         if 'repository' not in obj:
             return
         repo_name = obj['repository']['full_name']
+        if repo_name.startswith('QubesOS/qubes-'):
+            repo_name = repo_name[len('QubesOS/qubes-'):]
+        else:
+            repo_name = repo_name.split('/')[-1]
         try:
             with open(config_path) as config:
                 build_vms = config.read().splitlines()
