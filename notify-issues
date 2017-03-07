@@ -38,7 +38,7 @@ fixes_re = re.compile(r"(fixes|closes)( (https://github.com/[^ ]+/|"
                       re.IGNORECASE)
 cleanup_re = re.compile(r"[^ ]+[#/]")
 release_name_re = re.compile("r[0-9.]+")
-number_re = re.compile(r"[0-9]+")
+number_re = re.compile("\"number\": *([0-9]+)")
 
 auth_headers = {}
 
@@ -86,7 +86,7 @@ def get_issue_no_from_http_resp(resp):
         if '"number":' in line:
             match = number_re.search(line)
             if match:
-                return int(match.group(0))
+                return int(match.group(1))
             # don't look at other such lines
             break
     return None
@@ -120,10 +120,10 @@ def search_or_create_issue(github_repo, release, component,
         release=release
     )
     issue_no = None
-    search_url = 'https://api.github.com/search/issues/' \
+    search_url = 'https://api.github.com/search/issues?' \
                  'q=repo:{github_repo}+"{issue_title}"&sort=created'.format(
                     github_repo=github_repo,
-                    issue_title=issue_title.replace(' ', '+'))
+                    issue_title=issue_title)
     resp = requests.get(search_url, headers=auth_headers)
     if resp.ok:
         issue_no = get_issue_no_from_http_resp(resp)
