@@ -55,7 +55,7 @@ def handle(obj):
             print(str(e), file=sys.stderr)
             return
         for vm in build_vms:
-            qrexec(vm, 'qubesbuilder.TriggerBuild', repo_name + '\n')
+            qrexec(vm, 'qubesbuilder.TriggerBuild+' + repo_name)
     except KeyError:
         pass
 

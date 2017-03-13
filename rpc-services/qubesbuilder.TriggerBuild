@@ -3,15 +3,17 @@
 # Service called from network-exposed VM (probably sys-net) into actual build
 # VM to (potentially) trigger a build when a properly signed version tag is
 # being pushed.
-# The only thing on the service input is component name. Then each
+# The only thing in service argument is component name. Then each
 # qubes-builder instance (if multiple of them) will check if actually git
 # repository (branch configured in builder.conf) contains new version tag at
 # the top.
 
-read untrusted_component_name
-# that's the only thing we read from the caller, make sure we don't accidentally
-# read anything else - close stdin
+# Don't read anything from standard input
 exec </dev/null
+
+untrusted_component_name="$1"
+shift
+
 # also, don't return anything; log it locally, just in case
 mkdir -p $HOME/builder-github-logs
 log_basename="$HOME/builder-github-logs/$(date +%s)-$$"
