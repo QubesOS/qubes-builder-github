@@ -2,6 +2,12 @@ Update of @COMPONENT@ to @VERSION@ for Qubes @RELEASE_NAME@, see comments below 
 
 Built from: @GIT_URL@/commit/@COMMIT_SHA@
 
+[Changes since previous version](@GIT_LOG_URL@):
+@GIT_LOG@
+
+Referenced issues:
+@ISSUES@
+
 If you're release manager, you can issue GPG-inline signed command:
 
 * `Upload @COMPONENT@ @COMMIT_SHA@ @RELEASE_NAME@ current repo` (available 7 days from now)
