@@ -331,7 +331,7 @@ def notify_build_report(args, dist_label, repo_type, commit_sha,
     report_issue_no = search_or_create_issue(
         github_report_repo, args.release_name, os.environ['COMPONENT'],
         version=version,
-        create=bool(args.build_log), message_template_kwargs=message_kwargs)
+        create=True, message_template_kwargs=message_kwargs)
     if report_issue_no:
         comment_issue(report_issue_no, report_message,
             add_label, delete_label, github_repo=github_report_repo)
