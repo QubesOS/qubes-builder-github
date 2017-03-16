@@ -293,7 +293,8 @@ def notify_build_report(args, dist_label, repo_type, commit_sha,
                                  issues_string.split())
             referenced_issues.extend(issues_numbers)
 
-    referenced_issues_txt = '\n'.join(str(x) for x in set(referenced_issues))
+    referenced_issues_txt = '\n'.join(
+        'QubesOS/qubes-issues#{}'.format(x) for x in set(referenced_issues))
 
     git_url_var = 'GIT_URL_' + os.path.basename(args.src_dir).replace('-', '_')
     if git_url_var in os.environ:
