@@ -33,7 +33,7 @@ trap "rm -rf $tmpdir" EXIT
 
 # this will read from standard input of the service, the data should be
 # considered untrusted
-awk -b \
+tr -d '\r' | awk -b \
         -v in_command=0 \
         -v in_signature=0 \
         -v output_data="$tmpdir/untrusted_command.tmp" \
