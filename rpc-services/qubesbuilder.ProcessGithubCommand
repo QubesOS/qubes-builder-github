@@ -158,7 +158,7 @@ fi
 
 
     # if no specific distribution was requested, upload all of them
-    if [ "x$dists_and_end" == "repo" ]; then
+    if [ "x$dists_and_end" == "xrepo" ]; then
         COMPONENTS="$component" \
         "$builder_dir/scripts/make-with-log" \
             update-repo-$repo_name
@@ -183,7 +183,7 @@ fi
                 requested_dists_vm="$requested_dists_vm $dist"
             fi
             # don't fail otherwise - maybe builder in other VM will handle it
-        elif [ "x$dist_pair" == "repo" ]; then
+        elif [ "x$dist_pair" == "xrepo" ]; then
             # end processing here
             break
         fi
