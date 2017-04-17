@@ -125,10 +125,14 @@ fi
 
 # look for a builder instance(s) for this release
 IFS="="
-while read release_name builder_dir; do
-    component=
+while read config_release_name builder_dir; do
+
+    if [ "$config_release_name" != "$release_name" ]; then
+        continue
+    fi
+
     if ! [ -d "$builder_dir" ]; then
-        continue;
+        continue
     fi
 
     # at this point it's important to have only one instance running (and no build
