@@ -217,7 +217,7 @@ def notify_closed_issues(args, repo_type,
 
     git_url_var = 'GIT_URL_' + os.path.basename(args.src_dir).replace('-', '_')
     if git_url_var in os.environ:
-        git_url = git_url_var
+        git_url = os.environ[git_url_var]
     else:
         git_url = "{base}/{prefix}{repo}".format(
             base=github_baseurl,
