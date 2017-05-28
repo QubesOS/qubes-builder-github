@@ -276,6 +276,14 @@ def notify_build_report(args, dist_label, repo_type, commit_sha,
             'v*', '--abbrev=0', commit_sha + '~'],
         stdout=subprocess.PIPE)
     (version_tags, _) = git_proc.communicate()
+    if not version_tags:
+        # if no previous version tag, check from (some) root commit
+        git_proc = subprocess.Popen(
+            ['git', '-C', args.src_dir, 'rev-list', '--max-parents=0',
+                commit_sha + '~'],
+            stdout=subprocess.PIPE)
+        (version_tags, _) = git_proc.communicate()
+
     previous_version = version_tags.splitlines()[0]
 
     git_log_proc = subprocess.Popen(
