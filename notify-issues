@@ -127,7 +127,7 @@ def search_or_create_issue(github_repo, release, component,
                     github_repo=github_repo,
                     issue_title=issue_title)
     resp = requests.get(search_url, headers=auth_headers)
-    if resp.ok:
+    if resp.ok and issue_title in resp.content:
         issue_no = get_issue_no_from_http_resp(resp)
 
     # if still nothing, create new issue
