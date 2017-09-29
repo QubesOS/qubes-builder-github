@@ -9,7 +9,7 @@ update-repo-from-snapshot: notify-github
 notify-github: repo_words=$(subst /, ,$(UPDATE_REPO))
 notify-github: repo_type=$(word $(shell expr $(words $(repo_words)) - 2),$(repo_words))
 notify-github: release_name=$(word $(shell expr $(words $(repo_words)) - 3),$(repo_words))
-ifeq ($(DISTRIBUTION),fedora)
+ifneq (,$(findstring $(DISTRIBUTION), fedora centos))
 notify-github: pkg_name=$(basename $(basename $(notdir $(firstword $(packages)))))
 else ifneq (,$(findstring $(DISTRIBUTION), debian qubuntu))
 notify-github: pkg_name=$(firstword $(release_name_dist) $(release_name_full))
