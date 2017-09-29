@@ -1,6 +1,6 @@
 ifeq ($(DISTRIBUTION),)
     $(warning This plugin must be loaded after distribution-specifc one)
-else ifneq (,$(findstring $(DISTRIBUTION), debian qubuntu fedora))
+else ifneq (,$(findstring $(DISTRIBUTION), debian qubuntu fedora centos))
 ifeq (,$(GITHUB_STATE_DIR))
     $(error GITHUB_STATE_DIR not set)
 endif
