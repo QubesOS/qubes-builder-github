@@ -45,7 +45,7 @@ number_re = re.compile("\"number\": *([0-9]+)")
 auth_headers = {}
 
 
-def comment_issue(issue, message, add_label, delete_label,
+def comment_issue(issue, message, add_labels, delete_labels,
         github_repo=github_issues_repo):
     resp = requests.post("{}/repos/{}/issues/{}/comments".format(
         github_api_prefix,
@@ -56,28 +56,28 @@ def comment_issue(issue, message, add_label, delete_label,
     if not resp.ok:
         print "WARNING: failed to create comment on {}: {} {}".format(
             issue, resp.status_code, resp.content)
-    if delete_label:
+    for label in delete_labels:
         resp = requests.delete("{}/repos/{}/issues/{}/labels/{}".format(
             github_api_prefix,
             github_repo,
             issue,
-            delete_label
+            label
         ),
             headers=auth_headers)
         # ignore 404 error - most likely package was uploaded to testing
         # before introducing this mechanism
         if not resp.ok and resp.status_code != 404:
             print "WARNING: failed to delete {} label from issue {}: " \
-                  "{} {}".format(delete_label, issue,
+                  "{} {}".format(label, issue,
                 resp.status_code, resp.content)
-    if add_label:
+    for label in add_labels:
         resp = requests.post("{}/repos/{}/issues/{}/labels".format(
             github_api_prefix, github_repo, issue),
-            json=[add_label],
+            json=[label],
             headers=auth_headers)
         if not resp.ok:
             print "WARNING: failed to add {} label to issue {}: {} {}". \
-                format(add_label, issue,
+                format(label, issue,
                 resp.status_code, resp.content)
 
 def get_issue_no_from_http_resp(resp):
@@ -176,7 +176,7 @@ def search_or_create_issue(github_repo, release, component,
 
 def notify_closed_issues(args, repo_type,
         current_commit, previous_commit,
-        add_label, delete_label):
+        add_labels, delete_labels):
     message_template_path = "{}/message-{}-{}".format(
         os.path.dirname(sys.argv[0]),
         repo_type,
@@ -200,8 +200,8 @@ def notify_closed_issues(args, repo_type,
         match = fixes_re.search(line)
         if match:
             issues_string = match.group(0)
-            issues_numbers = map(lambda s: int(cleanup_re.sub("", s)),
-                                 issues_string.split()[1:])
+            issues_numbers = [int(cleanup_re.sub("", s))
+                for s in issues_string.split()[1:]]
             closed_issues.extend(issues_numbers)
 
     closed_issues = set(closed_issues)
@@ -242,11 +242,11 @@ def notify_closed_issues(args, repo_type,
             replace("@GIT_LOG@", shortlog).\
             replace("@GIT_LOG_URL@", git_log_url)
 
-        comment_issue(issue, message, add_label, delete_label)
+        comment_issue(issue, message, add_labels, delete_labels)
 
 
 def notify_build_report(args, dist_label, repo_type, commit_sha,
-        add_label, delete_label):
+        add_labels, delete_labels):
     if 'GITHUB_BUILD_REPORT_REPO' not in os.environ:
         return
 
@@ -297,8 +297,8 @@ def notify_build_report(args, dist_label, repo_type, commit_sha,
         match = issue_re.search(line)
         if match:
             issues_string = match.group(0)
-            issues_numbers = map(lambda s: int(cleanup_re.sub("", s)),
-                                 issues_string.split())
+            issues_numbers = [int(cleanup_re.sub("", s))
+                for s in issues_string.split()]
             referenced_issues.extend(issues_numbers)
 
     referenced_issues_txt = '\n'.join(
@@ -343,7 +343,7 @@ def notify_build_report(args, dist_label, repo_type, commit_sha,
         create=True, message_template_kwargs=message_kwargs)
     if report_issue_no:
         comment_issue(report_issue_no, report_message,
-            add_label, delete_label, github_repo=github_report_repo)
+            add_labels, delete_labels, github_repo=github_report_repo)
 
 
 def main():
@@ -382,19 +382,21 @@ def main():
         auth_headers['Authorization'] = \
             'token {}'.format(os.environ['GITHUB_API_KEY'])
 
-    delete_label = None
-    add_label = None
+    delete_labels = []
+    add_labels = []
     dist_label = args.dist
     if args.package_set == 'dom0':
         dist_label = 'dom0'
     if args.repo_type == 'current':
         repo_type = 'stable'
-        delete_label = "{}-{}-testing".format(args.release_name, dist_label)
-        add_label = "{}-{}-stable".format(args.release_name, dist_label)
+        delete_labels = ["{}-{}-cur-test".format(args.release_name, dist_label),
+                        "{}-{}-sec-test".format(args.release_name, dist_label)]
+        add_labels = ["{}-{}-stable".format(args.release_name, dist_label)]
     elif args.repo_type == 'current-testing':
-        add_label = "{}-{}-testing".format(args.release_name, dist_label)
-        repo_type = 'testing'
+        add_labels = ["{}-{}-cur-test".format(args.release_name, dist_label)]
+        repo_type = 'current-testing'
     elif args.repo_type == 'security-testing':
+        add_labels = ["{}-{}-sec-test".format(args.release_name, dist_label)]
         repo_type = 'security-testing'
     else:
         print "Ignoring {}".format(args.repo_type)
@@ -418,15 +420,15 @@ def main():
             previous_commit = f.readline().strip()
 
     if previous_commit is not None:
-        if repo_type in ['stable', 'testing']:
+        if repo_type in ['stable', 'current-testing']:
             notify_closed_issues(args, repo_type, current_commit,
-                previous_commit, add_label, delete_label)
+                previous_commit, add_labels, delete_labels)
 
     with open(args.state_file, 'w') as f:
         f.write(current_commit)
 
     notify_build_report(args, dist_label, repo_type, current_commit,
-        add_label, delete_label)
+        add_labels, delete_labels)
 
 if __name__ == '__main__':
     main()
