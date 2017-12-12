@@ -47,15 +47,16 @@ auth_headers = {}
 
 def comment_issue(issue, message, add_labels, delete_labels,
         github_repo=github_issues_repo):
-    resp = requests.post("{}/repos/{}/issues/{}/comments".format(
-        github_api_prefix,
-        github_repo,
-        issue),
-        json={'body': message},
-        headers=auth_headers)
-    if not resp.ok:
-        print "WARNING: failed to create comment on {}: {} {}".format(
-            issue, resp.status_code, resp.content)
+    if message:
+        resp = requests.post("{}/repos/{}/issues/{}/comments".format(
+            github_api_prefix,
+            github_repo,
+            issue),
+            json={'body': message},
+            headers=auth_headers)
+        if not resp.ok:
+            print "WARNING: failed to create comment on {}: {} {}".format(
+                issue, resp.status_code, resp.content)
     for label in delete_labels:
         resp = requests.delete("{}/repos/{}/issues/{}/labels/{}".format(
             github_api_prefix,
@@ -186,9 +187,9 @@ def notify_closed_issues(args, repo_type,
         message_template_path = message_template_path + "-" + args.dist
 
     if not os.path.exists(message_template_path):
-        print "ERROR: message template {} doesn't exist".format(
+        print "WARNING: message template {} doesn't exist, not adding comments".format(
             message_template_path)
-        sys.exit(1)
+        message_template_path = None
 
     git_log_proc = subprocess.Popen(
         ['git', '-C', args.src_dir, 'log', '{}..{}'.format(previous_commit,
@@ -232,15 +233,18 @@ def notify_closed_issues(args, repo_type,
 
     for issue in closed_issues:
         print "Adding a comment to issue #{}".format(issue)
-        message = open(message_template_path, 'r').read().\
-            replace("@DIST@", args.dist).\
-            replace("@PACKAGE_SET@", args.package_set).\
-            replace("@PACKAGE_NAME@", args.package_name).\
-            replace("@COMPONENT@", os.environ['COMPONENT']).\
-            replace("@REPOSITORY@", repo_type).\
-            replace("@RELEASE_NAME@", args.release_name).\
-            replace("@GIT_LOG@", shortlog).\
-            replace("@GIT_LOG_URL@", git_log_url)
+        if message_template_path:
+            message = open(message_template_path, 'r').read().\
+                replace("@DIST@", args.dist).\
+                replace("@PACKAGE_SET@", args.package_set).\
+                replace("@PACKAGE_NAME@", args.package_name).\
+                replace("@COMPONENT@", os.environ['COMPONENT']).\
+                replace("@REPOSITORY@", repo_type).\
+                replace("@RELEASE_NAME@", args.release_name).\
+                replace("@GIT_LOG@", shortlog).\
+                replace("@GIT_LOG_URL@", git_log_url)
+        else:
+            message = None
 
         comment_issue(issue, message, add_labels, delete_labels)
 
