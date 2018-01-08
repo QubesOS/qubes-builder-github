@@ -50,18 +50,16 @@ while read release_name builder_dir; do
 
     # we already verified if $untrusted_component_name do not contains '/' or
     # '.', now lets check if that component really exists in this builder instance
-    if ! [ -d "$builder_dir/qubes-src/$untrusted_component_name" ]; then
-        # don't fail, because this component may be simply in different builder instance
-        continue;
-    fi
-
-    # now validated
-    component="$untrusted_component_name"
-
-    # Start a build process in subprocess (allow parallel builds in different
-    # builders) and with a lock for this builder (don't allow multiple components
-    # being built at the same time in the same builder).
-    # This is implicit queueing mechanism.
-    flock -x "$builder_dir/builder.lock" "$builder_dir/scripts/auto-build" "$component" \
-        >>"${log_basename}-${release_name}.log" 2>&1 </dev/null &
+    for component in $(make -C "$builder_dir" get-var GET_VAR=COMPONENTS); do
+        if [ "$component" == "$untrusted_component_name" ]; then
+            # Start a build process in subprocess (allow parallel builds in different
+            # builders) and with a lock for this builder (don't allow multiple components
+            # being built at the same time in the same builder).
+            # This is implicit queueing mechanism.
+            flock -x "$builder_dir/builder.lock" \
+                "$builder_dir/scripts/auto-build" \
+                "$component" \
+                >>"${log_basename}-${component}-${release_name}.log" 2>&1 </dev/null &
+        fi
+    done
 done < "$config_file"
