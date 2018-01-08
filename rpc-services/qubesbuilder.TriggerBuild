@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Service called from network-exposed VM (probably sys-net) into actual build
 # VM to (potentially) trigger a build when a properly signed version tag is
@@ -51,7 +51,13 @@ while read release_name builder_dir; do
     # we already verified if $untrusted_component_name do not contains '/' or
     # '.', now lets check if that component really exists in this builder instance
     for component in $(make -C "$builder_dir" get-var GET_VAR=COMPONENTS); do
-        if [ "$component" == "$untrusted_component_name" ]; then
+        # check also for mismatching component and git repository name
+        component_url=$(make -C "$builder_dir" get-var GET_VAR=GIT_URL_"${component//-/_}")
+        component_repo=$(basename "$component_url" .git)
+        # strip 'qubes-' prefix, if any
+        component_repo=${component_repo#qubes-}
+        if [ "$component" == "$untrusted_component_name" ] || 
+                [ "$component_repo" == "$untrusted_component_name" ]; then
             # Start a build process in subprocess (allow parallel builds in different
             # builders) and with a lock for this builder (don't allow multiple components
             # being built at the same time in the same builder).
