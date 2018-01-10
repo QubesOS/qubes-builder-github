@@ -51,9 +51,9 @@ while read release_name builder_dir; do
     # we already verified if $untrusted_component_name do not contains '/' or
     # '.', now lets check if that component really exists in this builder instance
     IFS=$' \t\n'
-    for component in $(make -C "$builder_dir" get-var GET_VAR=COMPONENTS); do
+    for component in $(make -s -C "$builder_dir" get-var GET_VAR=COMPONENTS); do
         # check also for mismatching component and git repository name
-        component_url=$(make -C "$builder_dir" get-var GET_VAR=GIT_URL_"${component//-/_}")
+        component_url=$(make -s -C "$builder_dir" get-var GET_VAR=GIT_URL_"${component//-/_}")
         component_repo=$(basename "$component_url" .git)
         # strip 'qubes-' prefix, if any
         component_repo=${component_repo#qubes-}
