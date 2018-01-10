@@ -50,6 +50,7 @@ while read release_name builder_dir; do
 
     # we already verified if $untrusted_component_name do not contains '/' or
     # '.', now lets check if that component really exists in this builder instance
+    IFS=$' \t\n'
     for component in $(make -C "$builder_dir" get-var GET_VAR=COMPONENTS); do
         # check also for mismatching component and git repository name
         component_url=$(make -C "$builder_dir" get-var GET_VAR=GIT_URL_"${component//-/_}")
@@ -68,4 +69,5 @@ while read release_name builder_dir; do
                 >>"${log_basename}-${component}-${release_name}.log" 2>&1 </dev/null &
         fi
     done
+    IFS="="
 done < "$config_file"
