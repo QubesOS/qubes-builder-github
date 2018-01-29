@@ -1,6 +1,6 @@
 **Automated announcement from [builder-github]**
 
-The package `@PACKAGE_NAME@` has been pushed to the `@RELEASE_NAME@` stable repository for the Debian `@DIST@` template.
+The package `@PACKAGE_NAME@` has been pushed to the `@RELEASE_NAME@` stable repository for the Debian template.
 To install this update, please use the standard update command:
 ```
 sudo apt-get update && sudo apt-get dist-upgrade
