@@ -248,6 +248,64 @@ def notify_closed_issues(args, repo_type,
 
         comment_issue(issue, message, add_labels, delete_labels)
 
+def get_package_changes(src_dir, git_url, commit_sha):
+    ''' Returns a tuple of:
+        - current version
+        - previous verion
+        - git short log formatted with github links
+        - referenced github issues, in github syntax
+    '''
+    git_proc = subprocess.Popen(
+        ['git', '-C', src_dir, 'tag', '--list', '--points-at=HEAD', 'v*'],
+        stdout=subprocess.PIPE)
+    (version_tags, _) = git_proc.communicate()
+    version = version_tags.splitlines()[0]
+
+    # get previous version
+    git_proc = subprocess.Popen(
+        ['git', '-C', src_dir, 'describe', '--match',
+            'v*', '--abbrev=0', commit_sha + '~'],
+        stdout=subprocess.PIPE)
+    (version_tags, _) = git_proc.communicate()
+    if not version_tags:
+        # if no previous version tag, check from (some) root commit
+        git_proc = subprocess.Popen(
+            ['git', '-C', src_dir, 'rev-list', '--max-parents=0',
+                commit_sha + '~'],
+            stdout=subprocess.PIPE)
+        (version_tags, _) = git_proc.communicate()
+
+    previous_version = version_tags.splitlines()[0]
+
+    git_log_proc = subprocess.Popen(
+        ['git', '-C', src_dir, 'log', '{}..{}'.format(previous_version,
+            version)],
+        stdout=subprocess.PIPE)
+
+    (git_log, _) = git_log_proc.communicate()
+    referenced_issues = []
+    for line in git_log.splitlines():
+        match = issue_re.search(line)
+        if match:
+            issues_string = match.group(0)
+            issues_numbers = [int(cleanup_re.sub("", s))
+                for s in issues_string.split()]
+            referenced_issues.extend(issues_numbers)
+
+    referenced_issues_txt = '\n'.join(
+        'QubesOS/qubes-issues#{}'.format(x) for x in set(referenced_issues))
+
+    github_full_repo_name = '/'.join(git_url.split('/')[-2:])
+
+    git_log_proc = subprocess.Popen(
+        ['git', '-C', args.src_dir, 'log',
+         '--pretty=format:{}@%h %s'.format(
+             github_full_repo_name),
+         '{}..{}'.format(previous_version, version)],
+        stdout=subprocess.PIPE)
+    (shortlog, _) = git_log_proc.communicate()
+
+    return version, previous_version, shortlog, referenced_issues_txt
 
 def notify_build_report(args, dist_label, repo_type, commit_sha,
         add_labels, delete_labels):
@@ -268,70 +326,25 @@ def notify_build_report(args, dist_label, repo_type, commit_sha,
             "Package for {dist} was uploaded to {repo_type} repository".format(
                 dist=dist_label, repo_type=repo_type)
 
-    git_proc = subprocess.Popen(
-        ['git', '-C', args.src_dir, 'tag', '--list', '--points-at=HEAD', 'v*'],
-        stdout=subprocess.PIPE)
-    (version_tags, _) = git_proc.communicate()
-    version = version_tags.splitlines()[0]
-
-    # get previous version
-    git_proc = subprocess.Popen(
-        ['git', '-C', args.src_dir, 'describe', '--match',
-            'v*', '--abbrev=0', commit_sha + '~'],
-        stdout=subprocess.PIPE)
-    (version_tags, _) = git_proc.communicate()
-    if not version_tags:
-        # if no previous version tag, check from (some) root commit
-        git_proc = subprocess.Popen(
-            ['git', '-C', args.src_dir, 'rev-list', '--max-parents=0',
-                commit_sha + '~'],
-            stdout=subprocess.PIPE)
-        (version_tags, _) = git_proc.communicate()
-
-    previous_version = version_tags.splitlines()[0]
-
-    git_log_proc = subprocess.Popen(
-        ['git', '-C', args.src_dir, 'log', '{}..{}'.format(previous_version,
-                                                           version)],
-        stdout=subprocess.PIPE)
-
-    (git_log, _) = git_log_proc.communicate()
-    referenced_issues = []
-    for line in git_log.splitlines():
-        match = issue_re.search(line)
-        if match:
-            issues_string = match.group(0)
-            issues_numbers = [int(cleanup_re.sub("", s))
-                for s in issues_string.split()]
-            referenced_issues.extend(issues_numbers)
-
-    referenced_issues_txt = '\n'.join(
-        'QubesOS/qubes-issues#{}'.format(x) for x in set(referenced_issues))
-
-    git_url_var = 'GIT_URL_' + os.path.basename(args.src_dir).replace('-', '_')
+    component = os.path.basename(args.src_dir)
+    git_url_var = 'GIT_URL_' + component.replace('-', '_')
     if git_url_var in os.environ:
         git_url = os.environ[git_url_var]
     else:
         git_url = "{base}/{prefix}{repo}".format(
             base=github_baseurl,
             prefix=github_repo_prefix,
-            repo=os.path.basename(args.src_dir))
+            repo=component)
+
+    version, previous_version, shortlog, referenced_issues_txt = \
+         get_package_changes(args.src_dir, git_url, commit_sha)
+
     git_log_url = \
         "{git_url}/compare/{prev_commit}...{curr_commit}".format(
             git_url=git_url,
             prev_commit=previous_version,
             curr_commit=version
         )
-
-    github_full_repo_name = '/'.join(git_url.split('/')[-2:])
-
-    git_log_proc = subprocess.Popen(
-        ['git', '-C', args.src_dir, 'log',
-         '--pretty=format:{}@%h %s'.format(
-             github_full_repo_name),
-         '{}..{}'.format(previous_version, version)],
-        stdout=subprocess.PIPE)
-    (shortlog, _) = git_log_proc.communicate()
 
     message_kwargs = {
         '@COMMIT_SHA@': commit_sha,
@@ -342,7 +355,7 @@ def notify_build_report(args, dist_label, repo_type, commit_sha,
     }
 
     report_issue_no = search_or_create_issue(
-        github_report_repo, args.release_name, os.environ['COMPONENT'],
+        github_report_repo, args.release_name, component,
         version=version,
         create=True, message_template_kwargs=message_kwargs)
     if report_issue_no:
