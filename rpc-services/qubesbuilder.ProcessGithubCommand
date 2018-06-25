@@ -194,7 +194,7 @@ while read config_release_name builder_dir; do
         read requested_dists_vm <<EOF
 $requested_dists_vm
 EOF
-        requested_dists_dom0 <<EOF
+        read requested_dists_dom0 <<EOF
 $requested_dists_dom0
 EOF
 
