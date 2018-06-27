@@ -129,7 +129,8 @@ Installation
         GITHUB_BUILD_REPORT_REPO = QubesOS/updates-status
 
 2. (optional) Place rpc services in `/usr/local/etc/qubes-rpc` directory of
-   build VM. There are two services:
+   build VM. Also, copy (or symlink) `lib` directory to
+   `/usr/local/lib/qubes-builder-github`. There are two services:
 
 - `qubesbuilder.TriggerBuild`: Trigger a build for a given component. The
    service will check if configured branch (according to `builder.conf`) have
