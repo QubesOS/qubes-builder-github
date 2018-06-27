@@ -85,8 +85,11 @@ upload_for_release() {
     # otherwise, process repositories list
     requested_dists_dom0=
     requested_dists_vm=
-    supported_dists_dom0=$(make -C "$builder_dir" get-var GET_VAR=DIST_DOM0)
-    supported_dists_vm=$(make -C "$builder_dir" get-var GET_VAR=DISTS_VM_NO_FLAVOR)
+    supported_dists_dom0=$(make --no-print-directory -C "$builder_dir" \
+            get-var GET_VAR=DIST_DOM0)
+    supported_dists_vm=$(make --no-print-directory -C "$builder_dir" \
+            get-var GET_VAR=DISTS_VM_NO_FLAVOR)
+    IFS=' '
     for dist_pair in $dists_and_end; do
         package_set=${dist_pair%%-*}
         dist=${dist_pair#*-}
