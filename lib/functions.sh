@@ -8,13 +8,13 @@
 config_file="$HOME/.config/qubes-builder-github/builders.list"
 
 # don't return anything; log it locally, just in case
-mkdir -p $HOME/builder-github-logs
+mkdir -p "$HOME/builder-github-logs"
 log_basename="$HOME/builder-github-logs/$(date +%s)-$$"
-exec >>${log_basename}.log 2>&1
+exec >>"${log_basename}.log" 2>&1
 
 tmpdir=$(mktemp -d)
 # setup cleanup
-trap "rm -rf $tmpdir" EXIT
+trap 'rm -rf $tmpdir' EXIT
 
 ###
 ### Common functions for qubes-builder-github scripts
@@ -24,11 +24,11 @@ trap "rm -rf $tmpdir" EXIT
 # it to the file pointed by $2.
 # The script will close stdin to be sure no other (untrusted) data is obtained.
 read_stdin_command_and_verify_signature() {
-    local keyring_path="$1"
-    local output_file="$2"
+    local_keyring_path="$1"
+    local_output_file="$2"
 
-    if ! [ -r "$keyring_path" ]; then
-        echo "Keyring $keyring_path does not exist" >&2
+    if ! [ -r "$local_keyring_path" ]; then
+        echo "Keyring $local_keyring_path does not exist" >&2
         return 1
     fi
 
@@ -71,8 +71,8 @@ read_stdin_command_and_verify_signature() {
     # make sure we don't read anything else from stdin
     exec </dev/null
 
-    if [ ! -r "$tmpdir/untrusted_command.tmp" -o \
-         ! -r "$tmpdir/untrusted_command.sig" ]; then
+    if [ ! -r "$tmpdir/untrusted_command.tmp" ] || \
+            [ ! -r "$tmpdir/untrusted_command.sig" ]; then
         echo "Missing parts of gpg signature" >&2
         exit 1
     fi
@@ -81,7 +81,7 @@ read_stdin_command_and_verify_signature() {
     # must do the same here for signature verification. This is stupid.
     head -c -1 "$tmpdir/untrusted_command.tmp" > "$tmpdir/untrusted_command"
 
-    if ! gpgv2 --keyring "$keyring_path" \
+    if ! gpgv2 --keyring "$local_keyring_path" \
             "$tmpdir/untrusted_command.sig" \
             "$tmpdir/untrusted_command"; then
         echo "Invalid signature" >&2
@@ -89,13 +89,13 @@ read_stdin_command_and_verify_signature() {
     fi
 
     # now, take the first line of already verified file
-    head -n 1 "$tmpdir/untrusted_command" > "$output_file"
+    head -n 1 "$tmpdir/untrusted_command" > "$local_output_file"
     # add trailing newline back
-    echo "" >> "$output_file"
+    echo "" >> "$local_output_file"
 
     # log the command
-    echo -n "Command: " >&2
-    cat "$output_file" >&2
+    printf "Command: " >&2
+    cat "$local_output_file" >&2
 }
 
 
@@ -106,11 +106,11 @@ read_stdin_command_and_verify_signature() {
 #  - release name (like r3.2)
 #  - builder instance path
 execute_in_each_builder() {
-    local cmd="$1"
+    local_cmd="$1"
 
     # look for a builder instance(s) for this release
     IFS="="
-    while read config_release_name builder_dir; do
+    while read -r config_release_name builder_dir; do
         if ! [ -d "$builder_dir" ]; then
             continue
         fi
@@ -122,11 +122,14 @@ execute_in_each_builder() {
             exec 9> "$builder_dir/builder.lock"
             flock -x 9
 
+            # avoid surprises later in the code
+            IFS=' '
+
             # don't read $config_file (stdin for 'while' loop) and also don't mix
             # the output
             exec >>"${log_basename}-${config_release_name}.log" 2>&1 </dev/null
 
-            $cmd "$config_release_name" "$builder_dir"
+            $local_cmd "$config_release_name" "$builder_dir"
 
         ) &
 

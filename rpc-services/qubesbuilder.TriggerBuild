@@ -15,9 +15,9 @@ untrusted_component_name="$1"
 shift
 
 # also, don't return anything; log it locally, just in case
-mkdir -p $HOME/builder-github-logs
+mkdir -p "$HOME/builder-github-logs"
 log_basename="$HOME/builder-github-logs/$(date +%s)-$$"
-exec >>${log_basename}.log 2>&1
+exec >>"${log_basename}.log" 2>&1
 
 # validate component name - forbid '/', '.' and space
 case "${untrusted_component_name}" in
@@ -42,7 +42,7 @@ if ! [ -r "$config_file" ]; then
 fi
 
 IFS="="
-while read release_name builder_dir; do
+while read -r release_name builder_dir; do
     component=
     if ! [ -d "$builder_dir" ]; then
         continue;
@@ -57,7 +57,7 @@ while read release_name builder_dir; do
         component_repo=$(basename "$component_url" .git)
         # strip 'qubes-' prefix, if any
         component_repo=${component_repo#qubes-}
-        if [ "$component" == "$untrusted_component_name" ] || 
+        if [ "$component" == "$untrusted_component_name" ] ||
                 [ "$component_repo" == "$untrusted_component_name" ]; then
             # Start a build process in subprocess (allow parallel builds in different
             # builders) and with a lock for this builder (don't allow multiple components
