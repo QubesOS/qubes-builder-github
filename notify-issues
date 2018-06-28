@@ -137,10 +137,16 @@ def search_or_create_issue(github_repo, release, component,
         if not create:
             return None
 
-        message_template_path = os.path.join(
-            os.path.dirname(sys.argv[0]),
-            'message-build-report'
-        )
+        if component.startswith('qubes-template'):
+            message_template_path = os.path.join(
+                os.path.dirname(sys.argv[0]),
+                'message-build-report-template'
+            )
+        else:
+            message_template_path = os.path.join(
+                os.path.dirname(sys.argv[0]),
+                'message-build-report'
+            )
         if not os.path.exists(message_template_path):
             print "WARNING: {} does not exist".format(message_template_path)
             return None
@@ -336,23 +342,35 @@ def notify_build_report(args, dist_label, repo_type, commit_sha,
             prefix=github_repo_prefix,
             repo=component)
 
-    version, previous_version, shortlog, referenced_issues_txt = \
-         get_package_changes(args.src_dir, git_url, commit_sha)
+    if component == 'linux-template-builder':
+        # qubes-template-fedora-25-4.0.0-201710170053
+        version = '-'.join(args.package_name.split('-')[-2:])
+        component = '-'.join(args.package_name.split('-')[:-2])
+        template_name = component.replace('qubes-template-', '')
+        message_kwargs = {
+            '@COMMIT_SHA@': commit_sha,
+            '@GIT_URL@': git_url,
+            '@TEMPLATE_NAME@': template_name,
+            '@DIST@': os.getenv('DIST_ORIG_ALIAS', '(dist)'),
+        }
+    else:
+        version, previous_version, shortlog, referenced_issues_txt = \
+             get_package_changes(args.src_dir, git_url, commit_sha)
 
-    git_log_url = \
-        "{git_url}/compare/{prev_commit}...{curr_commit}".format(
-            git_url=git_url,
-            prev_commit=previous_version,
-            curr_commit=version
-        )
+        git_log_url = \
+            "{git_url}/compare/{prev_commit}...{curr_commit}".format(
+                git_url=git_url,
+                prev_commit=previous_version,
+                curr_commit=version
+            )
 
-    message_kwargs = {
-        '@COMMIT_SHA@': commit_sha,
-        '@GIT_URL@': git_url,
-        '@GIT_LOG@': shortlog,
-        '@GIT_LOG_URL@': git_log_url,
-        '@ISSUES@': referenced_issues_txt
-    }
+        message_kwargs = {
+            '@COMMIT_SHA@': commit_sha,
+            '@GIT_URL@': git_url,
+            '@GIT_LOG@': shortlog,
+            '@GIT_LOG_URL@': git_log_url,
+            '@ISSUES@': referenced_issues_txt
+        }
 
     report_issue_no = search_or_create_issue(
         github_report_repo, args.release_name, component,
@@ -374,7 +392,9 @@ def main():
     parser.add_argument("repo_type",
                         help="Repository type",
                         choices=['current', 'current-testing',
-                                 'security-testing', 'unstable'])
+                                 'security-testing', 'unstable',
+                                 'templates-itl', 'templates-itl-testing',
+                                 'templates-community', 'templates-community-testing'])
     parser.add_argument("src_dir",
                         help="Component sources path")
     parser.add_argument("package_name",
@@ -402,6 +422,7 @@ def main():
     delete_labels = []
     add_labels = []
     dist_label = args.dist
+    repo_type = args.repo_type
     if args.package_set == 'dom0':
         dist_label = 'dom0'
     if args.repo_type == 'current':
@@ -411,10 +432,13 @@ def main():
         add_labels = ["{}-{}-stable".format(args.release_name, dist_label)]
     elif args.repo_type == 'current-testing':
         add_labels = ["{}-{}-cur-test".format(args.release_name, dist_label)]
-        repo_type = 'current-testing'
     elif args.repo_type == 'security-testing':
         add_labels = ["{}-{}-sec-test".format(args.release_name, dist_label)]
-        repo_type = 'security-testing'
+    elif args.repo_type == 'templates-itl':
+        delete_labels = ["{}-testing".format(args.release_name)]
+        add_labels = ["{}-stable".format(args.release_name)]
+    elif args.repo_type == 'templates-itl-testing':
+        add_labels = ["{}-testing".format(args.release_name)]
     else:
         print "Ignoring {}".format(args.repo_type)
         return

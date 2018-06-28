@@ -47,7 +47,12 @@ case "${dists_and_end}" in
         ;;
 esac
 
-if [ "x$repo_name" != "xcurrent" ] && [ "x$repo_name" != "xsecurity-testing" ]; then
+if [ "x${component}" = "xlinux-template-builder" ]; then
+    if [ "x$repo_name" != "xtemplates-itl" ] && [ "x$repo_name" != "xtemplates-community" ]; then
+        echo "Unsupported target repo" >&2
+        exit 1
+    fi
+elif [ "x$repo_name" != "xcurrent" ] && [ "x$repo_name" != "xsecurity-testing" ]; then
     echo "Unsupported target repo" >&2
     exit 1
 fi
@@ -69,14 +74,18 @@ upload_for_release() {
         return 0
     fi
 
-    actual_commit_sha=$(git -C "$local_builder_dir/qubes-src/$component" rev-parse HEAD)
-    if [ "x$commit_sha" != "x$actual_commit_sha" ]; then
-        echo "Repository have changed in the meantime (current: $actual_commit_sha)" >&2
-        return 1
+    # for templates verify for each separately
+    if [ "$component" != "linux-template-builder" ]; then
+        actual_commit_sha=$(git -C "$local_builder_dir/qubes-src/$component" rev-parse HEAD)
+        if [ "x$commit_sha" != "x$actual_commit_sha" ]; then
+            echo "Repository have changed in the meantime (current: $actual_commit_sha)" >&2
+            return 1
+        fi
     fi
 
-    # if no specific distribution was requested, upload all of them
-    if [ "x$dists_and_end" = "xrepo" ]; then
+    # if no specific distribution was requested, upload all of them, unless template
+    if [ "$component" != "linux-template-builder" ] && \
+            [ "x$dists_and_end" = "xrepo" ]; then
         COMPONENTS="$component" \
         "$local_builder_dir/scripts/make-with-log" \
             "update-repo-$repo_name"
@@ -88,8 +97,18 @@ upload_for_release() {
     requested_dists_vm=
     supported_dists_dom0=$(make --no-print-directory -C "$local_builder_dir" \
             get-var GET_VAR=DIST_DOM0)
-    supported_dists_vm=$(make --no-print-directory -C "$local_builder_dir" \
-            get-var GET_VAR=DISTS_VM_NO_FLAVOR)
+    if [ "$component" = "linux-template-builder" ]; then
+        # for templates force original DIST_DOM0 ...
+        requested_dists_dom0="$supported_dists_dom0"
+        supported_dists_dom0=
+        # ... and DISTS_VM including flavors
+        supported_dists_vm=$(make --no-print-directory -C "$local_builder_dir" \
+                TEMPLATE_ALIAS= \
+                get-var GET_VAR=DISTS_VM)
+    else
+        supported_dists_vm=$(make --no-print-directory -C "$local_builder_dir" \
+                get-var GET_VAR=DISTS_VM_NO_FLAVOR)
+    fi
     IFS=' '
     for dist_pair in $dists_and_end; do
         package_set=${dist_pair%%-*}
@@ -101,6 +120,19 @@ upload_for_release() {
             # don't fail otherwise - maybe builder in other VM will handle it
         elif [ "x$package_set" = "xvm" ]; then
             if echo " $supported_dists_vm " | grep -q " $dist "; then
+                # for templates verify its version here
+                if [ "$component" = "linux-template-builder" ]; then
+                    template_name=$(DISTS_VM="$dist" make -s -C "$local_builder_dir" \
+                        template-name)
+                    build_version=$(cat \
+                        "$local_builder_dir/qubes-src/linux-template-builder/version")
+                    build_timestamp=$(cat \
+                        "$local_builder_dir/qubes-src/linux-template-builder/build_timestamp_$template_name")
+                    if [ "$commit_sha" != "$build_version-$build_timestamp" ]; then
+                        echo "Different template was built in the meantime (current: $build_version-$build_timestamp)" >&2
+                        return 1
+                    fi
+                fi
                 requested_dists_vm="$requested_dists_vm $dist"
             fi
             # don't fail otherwise - maybe builder in other VM will handle it
