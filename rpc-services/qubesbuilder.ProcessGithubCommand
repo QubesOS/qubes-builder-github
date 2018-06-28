@@ -7,6 +7,9 @@
 # Service input should consists of inline GPG-signed message with just one line:
 #
 #    "Upload" component_name commit_sha release_name "current" (dists) "repo"
+# or
+#
+#    "Build-template" dist timestamp
 #
 # (words in quotes are verbatim - without quotes, others are parameters)
 # Also, instead of "current", "security-testing" value is supported too.
@@ -30,6 +33,9 @@ read -r action args < "$tmpdir/command"
 case "$action" in
     Upload)
         "$scripts_dir/github-command-upload" "$tmpdir/command"
+        ;;
+    Build-template)
+        "$scripts_dir/github-command-build-template" "$tmpdir/command"
         ;;
     *)
         echo "Unknown command $action" >&2

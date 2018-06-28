@@ -57,6 +57,8 @@ GPG keyring with public keys allowed to sign repository action commands (see bel
 Commands in github issues comments
 ----------------------------------
 
+### Upload command ###
+
 Issues created in repository pointed by `GITHUB_BUILD_REPORT_REPO` have one
 more purpose. Can be used to control when packages should be moved from testing
 (`current-testing`) to stable (`current`) repository. This can be achieved by
@@ -80,6 +82,30 @@ Parameters:
     codename (like `fc25`), separated with `-`; for example `dom0-fc23` or
     `vm-jessie`.
 
+Command needs to be signed with key for which public part is in
+`~/.config/qubes-builder-github/trusted-keys-for-commands.gpg` keyring.
+
+### Build-template command ###
+
+One can use Build-template command to start a template build. A command
+consists of one line in form:
+
+    "Build-template" release_name dist timestamp
+
+(words in quotes should be used verbatim - without quotes, others are parameters)
+
+Parameters:
+
+  - `release_name` - name of release, like `r3.2`; must match name used in
+    `builders.list` configuration and name used in updates repositories
+    (apt/yum/...)
+  - `dist` - template code name, as defined in builder.conf, `DISTS_VM` option;
+    only values listed in `DISTS_VM` (for particular builder instance) are
+    allowed
+  - `timestamp` - timestamp part of template version, in form `%Y%m%d%H%M`, UTC
+    (for example `201806281345`); must be not older than 1h and not greater
+    than 5 minutes into the future
+  
 Command needs to be signed with key for which public part is in
 `~/.config/qubes-builder-github/trusted-keys-for-commands.gpg` keyring.
 
