@@ -57,6 +57,18 @@ GPG keyring with public keys allowed to sign repository action commands (see bel
 Commands in github issues comments
 ----------------------------------
 
+`qubesbuilder.ProcessGithubCommand` rpc service can respond to GPG-signed
+commands, for example sent as a comment on (some) github issue. Each such
+command needs to be properly inline GPG signed, with a key included in
+`~/.config/qubes-builder-github/trusted-keys-for-commands.gpg`. The service
+does not try to validate where such comment is placed, it trusts only signed
+content of the comment (this is conscious design decision).
+Additionally, set `ALLOWED_DISTS_fingerprint` option in `builder.conf` (replace
+`fingerprint` with actual full key fingerprint) to list what
+distribution can be controlled with a given key. Include `dom0` word to grant
+access also to dom0 packages. You can set it to `$(DISTS_VM) dom0`, to allow
+everything, regardless of actual `DISTS_VM` value.
+
 ### Upload command ###
 
 Issues created in repository pointed by `GITHUB_BUILD_REPORT_REPO` have one

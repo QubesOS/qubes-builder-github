@@ -5,13 +5,15 @@
 #
 # First argument is expected to be a command file path, already
 # verified against trusted keys set.
+# Second argument is a key fingerprint used to sign the command
 
-if [ $# -lt 1 ]; then
-    echo "Usage: $0 <command-file>" >&2
+if [ $# -lt 2 ]; then
+    echo "Usage: $0 <command-file> <key-fingerprint>" >&2
     exit 1
 fi
 
 command_file="$1"
+signer_fpr="$2"
 
 scripts_dir="/usr/local/lib/qubes-builder-github"
 
@@ -83,9 +85,18 @@ upload_for_release() {
         fi
     fi
 
+    allowed_dists=$(get_allowed_dists "$local_builder_dir" "$signer_fpr")
+
     # if no specific distribution was requested, upload all of them, unless template
     if [ "$component" != "linux-template-builder" ] && \
             [ "x$dists_and_end" = "xrepo" ]; then
+        dom0_opt=
+        if [ "${allowed_dists% dom0}" = "$allowed_dists" ]; then
+            # exclude dom0
+            dom0_opt="DIST_DOM0="
+        fi
+        DISTS_VM="${allowed_dists% dom0}" \
+        $dom0_opt \
         COMPONENTS="$component" \
         "$local_builder_dir/scripts/make-with-log" \
             "update-repo-$repo_name"
@@ -102,12 +113,16 @@ upload_for_release() {
         requested_dists_dom0="$supported_dists_dom0"
         supported_dists_dom0=
         # ... and DISTS_VM including flavors
-        supported_dists_vm=$(make --no-print-directory -C "$local_builder_dir" \
-                TEMPLATE_ALIAS= \
-                get-var GET_VAR=DISTS_VM)
+        supported_dists_vm="${allowed_dists% dom0}"
     else
-        supported_dists_vm=$(make --no-print-directory -C "$local_builder_dir" \
+        # otherwise resolve aliases and cut out flavors
+        supported_dists_vm=$(DISTS_VM="${allowed_dists% dom0}" \
+                make --no-print-directory -C "$local_builder_dir" \
                 get-var GET_VAR=DISTS_VM_NO_FLAVOR)
+    fi
+    # exclude dom0 if not allowed
+    if [ "${allowed_dists% dom0}" = "$allowed_dists" ]; then
+        supported_dists_dom0=
     fi
     IFS=' '
     for dist_pair in $dists_and_end; do

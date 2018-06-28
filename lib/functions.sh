@@ -22,10 +22,14 @@ trap 'rm -rf $tmpdir' EXIT
 
 # read clearsign-ed command from stdin, verify against keys in $1, then write
 # it to the file pointed by $2.
+#
+# Optionally, $3 may contain a variable name where signer key fingerprint is set.
+#
 # The script will close stdin to be sure no other (untrusted) data is obtained.
 read_stdin_command_and_verify_signature() {
     local_keyring_path="$1"
     local_output_file="$2"
+    local_signer="$3"
 
     if ! [ -r "$local_keyring_path" ]; then
         echo "Keyring $local_keyring_path does not exist" >&2
@@ -82,11 +86,20 @@ read_stdin_command_and_verify_signature() {
     head -c -1 "$tmpdir/untrusted_command.tmp" > "$tmpdir/untrusted_command"
 
     if ! gpgv2 --keyring "$local_keyring_path" \
+            --status-fd=3 \
             "$tmpdir/untrusted_command.sig" \
-            "$tmpdir/untrusted_command"; then
+            "$tmpdir/untrusted_command" \
+            3>"$tmpdir/gpg-status"; then
         echo "Invalid signature" >&2
         exit 1
     fi
+
+    # extract signer fingerprint
+    if [ -n "$local_signer" ]; then
+        eval "$local_signer"="$(grep -Po '^\[GNUPG:\] VALIDSIG \K([0-9A-F]*)' \
+                "$tmpdir/gpg-status")"
+    fi
+    rm -f "$tmpdir/gpg-status"
 
     # now, take the first line of already verified file
     head -n 1 "$tmpdir/untrusted_command" > "$local_output_file"
@@ -134,4 +147,31 @@ execute_in_each_builder() {
         ) &
 
     done < "$config_file"
+}
+
+# get list of allowed distributions for given key, including template aliases
+# if dom0 is allowed, put it at the end of the list
+# Arguments:
+# - builder dir
+# - key fingerprint
+get_allowed_dists() {
+    local_builder_dir="$1"
+    local_signer_fpr="$2"
+
+    local_dists=$(MAKEFLAGS='' make -s -C "$local_builder_dir" \
+            get-var \
+            GET_VAR="ALLOWED_DISTS_$local_signer_fpr")
+
+    # now, filter out those not configured in DISTS_VM
+    # shellcheck disable=SC2016
+    configured_dists=$(MAKEFLAGS='' make -s -C "$local_builder_dir" \
+            TEMPLATE_ALIAS= \
+            FILTERED_DISTS='$(filter $(DISTS_VM),$(ALLOWED_DISTS_'"$local_signer_fpr"'))' \
+            get-var \
+            GET_VAR=FILTERED_DISTS)
+    if echo " $local_dists " | grep -q ' dom0 '; then
+        echo "$configured_dists dom0"
+    else
+        echo "$configured_dists"
+    fi
 }

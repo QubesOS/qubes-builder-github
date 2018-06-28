@@ -5,13 +5,15 @@
 #
 # First argument is expected to be a command file path, already
 # verified against trusted keys set. 
+# Second argument is a key fingerprint used to sign the command
 
-if [ $# -lt 1 ]; then
-    echo "Usage: $0 <command-file>" >&2
+if [ $# -lt 2 ]; then
+    echo "Usage: $0 <command-file> <key-fingerprint>" >&2
     exit 1
 fi
 
 command_file="$1"
+signer_fpr="$2"
 
 scripts_dir="/usr/local/lib/qubes-builder-github"
 
@@ -70,9 +72,15 @@ build_template_for_release() {
     supported_dists=$(make --no-print-directory -C "$local_builder_dir" \
             TEMPLATE_ALIAS= \
             get-var GET_VAR=DISTS_VM)
+    allowed_dists=$(get_allowed_dists "$local_builder_dir" "$signer_fpr")
 
     if ! echo " $supported_dists " | grep -q " $dist "; then
         # not listed in this builder instance
+        return
+    fi
+
+    if ! echo " $allowed_dists " | grep -q " $dist "; then
+        # not allowed here
         return
     fi
 
