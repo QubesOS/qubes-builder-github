@@ -319,7 +319,9 @@ def notify_build_report(args, dist_label, repo_type, commit_sha,
         return
 
     github_report_repo = os.environ['GITHUB_BUILD_REPORT_REPO']
-    if args.build_log:
+    if args.command == 'build-start':
+        report_message = None
+    elif args.build_log:
         report_message = \
             "Package for {dist} was built ([build log]({build_log})) and " \
             "uploaded to {repo_type} repository".format(
@@ -376,7 +378,7 @@ def notify_build_report(args, dist_label, repo_type, commit_sha,
         github_report_repo, args.release_name, component,
         version=version,
         create=True, message_template_kwargs=message_kwargs)
-    if report_issue_no:
+    if report_issue_no and args.command == 'upload':
         comment_issue(report_issue_no, report_message,
             add_labels, delete_labels, github_repo=github_report_repo)
 
@@ -387,29 +389,46 @@ def main():
              "current state is recorded"
 
     parser = ArgumentParser(epilog=epilog)
-    parser.add_argument("release_name",
+    parser.add_argument("--auth-token",
+                        help="Github authentication token (OAuth2)")
+    parser.add_argument("--build-log",
+                        help="Build log name in build-logs repository")
+    subparsers = parser.add_subparsers(help='command')
+    upload_parser = subparsers.add_parser('upload')
+    upload_parser.set_defaults(command='upload')
+    upload_parser.add_argument("release_name",
                         help="Release name, for example r3.0")
-    parser.add_argument("repo_type",
+    upload_parser.add_argument("src_dir",
+                        help="Component sources path")
+    upload_parser.add_argument("package_name",
+                        help="Binary package name")
+    upload_parser.add_argument("dist",
+                        help="Distribution release code name")
+    upload_parser.add_argument("package_set",
+                        choices=['dom0', 'vm'])
+    upload_parser.add_argument("repo_type",
                         help="Repository type",
                         choices=['current', 'current-testing',
                                  'security-testing', 'unstable',
                                  'templates-itl', 'templates-itl-testing',
                                  'templates-community', 'templates-community-testing'])
-    parser.add_argument("src_dir",
-                        help="Component sources path")
-    parser.add_argument("package_name",
-                        help="Binary package name")
-    parser.add_argument("dist",
-                        help="Distribution release code name")
-    parser.add_argument("package_set",
-                        choices=['dom0', 'vm'])
-    parser.add_argument("state_file",
+    upload_parser.add_argument("state_file",
                         help="File to store internal state (previous commit "
                              "id)")
-    parser.add_argument("--auth-token",
-                        help="Github authentication token (OAuth2)")
-    parser.add_argument("--build-log",
-                        help="Build log name in build-logs repository")
+
+    build_parser = subparsers.add_parser('build-start')
+    build_parser.set_defaults(command='build-start')
+    build_parser.add_argument("release_name",
+                        help="Release name, for example r3.0")
+    build_parser.add_argument("src_dir",
+                        help="Component sources path")
+    build_parser.add_argument("package_name",
+                        help="Binary package name")
+    build_parser.add_argument("dist",
+                        help="Distribution release code name")
+    build_parser.add_argument("package_set",
+                        choices=['dom0', 'vm'])
+
     args = parser.parse_args()
 
     if args.auth_token:
@@ -419,29 +438,35 @@ def main():
         auth_headers['Authorization'] = \
             'token {}'.format(os.environ['GITHUB_API_KEY'])
 
-    delete_labels = []
-    add_labels = []
     dist_label = args.dist
-    repo_type = args.repo_type
     if args.package_set == 'dom0':
         dist_label = 'dom0'
-    if args.repo_type == 'current':
-        repo_type = 'stable'
-        delete_labels = ["{}-{}-cur-test".format(args.release_name, dist_label),
-                        "{}-{}-sec-test".format(args.release_name, dist_label)]
-        add_labels = ["{}-{}-stable".format(args.release_name, dist_label)]
-    elif args.repo_type == 'current-testing':
-        add_labels = ["{}-{}-cur-test".format(args.release_name, dist_label)]
-    elif args.repo_type == 'security-testing':
-        add_labels = ["{}-{}-sec-test".format(args.release_name, dist_label)]
-    elif args.repo_type == 'templates-itl':
-        delete_labels = ["{}-testing".format(args.release_name)]
-        add_labels = ["{}-stable".format(args.release_name)]
-    elif args.repo_type == 'templates-itl-testing':
-        add_labels = ["{}-testing".format(args.release_name)]
+
+    if args.command == 'upload':
+        delete_labels = []
+        add_labels = []
+        repo_type = args.repo_type
+        if args.repo_type == 'current':
+            repo_type = 'stable'
+            delete_labels = ["{}-{}-cur-test".format(args.release_name, dist_label),
+                            "{}-{}-sec-test".format(args.release_name, dist_label)]
+            add_labels = ["{}-{}-stable".format(args.release_name, dist_label)]
+        elif args.repo_type == 'current-testing':
+            add_labels = ["{}-{}-cur-test".format(args.release_name, dist_label)]
+        elif args.repo_type == 'security-testing':
+            add_labels = ["{}-{}-sec-test".format(args.release_name, dist_label)]
+        elif args.repo_type == 'templates-itl':
+            delete_labels = ["{}-testing".format(args.release_name)]
+            add_labels = ["{}-stable".format(args.release_name)]
+        elif args.repo_type == 'templates-itl-testing':
+            add_labels = ["{}-testing".format(args.release_name)]
+        else:
+            print "Ignoring {}".format(args.repo_type)
+            return
     else:
-        print "Ignoring {}".format(args.repo_type)
-        return
+        add_labels = []
+        delete_labels = []
+        repo_type = None
 
     if not release_name_re.match(args.release_name):
         print "Ignoring release {}".format(args.release_name)
@@ -452,21 +477,23 @@ def main():
         stdout=subprocess.PIPE)
     (current_commit, _) = git_proc.communicate()
     current_commit = current_commit.strip()
-    if not os.path.exists(args.state_file):
-        print "WARNING: {} does not exist, initializing with the " \
-              "current state".format(args.state_file)
-        previous_commit = None
-    else:
-        with open(args.state_file, 'r') as f:
-            previous_commit = f.readline().strip()
 
-    if previous_commit is not None:
-        if repo_type in ['stable', 'current-testing']:
-            notify_closed_issues(args, repo_type, current_commit,
-                previous_commit, add_labels, delete_labels)
+    if args.command == 'upload':
+        if not os.path.exists(args.state_file):
+            print "WARNING: {} does not exist, initializing with the " \
+                  "current state".format(args.state_file)
+            previous_commit = None
+        else:
+            with open(args.state_file, 'r') as f:
+                previous_commit = f.readline().strip()
 
-    with open(args.state_file, 'w') as f:
-        f.write(current_commit)
+        if previous_commit is not None:
+            if repo_type in ['stable', 'current-testing']:
+                notify_closed_issues(args, repo_type, current_commit,
+                    previous_commit, add_labels, delete_labels)
+
+        with open(args.state_file, 'w') as f:
+            f.write(current_commit)
 
     notify_build_report(args, dist_label, repo_type, current_commit,
         add_labels, delete_labels)
