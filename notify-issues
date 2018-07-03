@@ -304,7 +304,7 @@ def get_package_changes(src_dir, git_url, commit_sha):
     github_full_repo_name = '/'.join(git_url.split('/')[-2:])
 
     git_log_proc = subprocess.Popen(
-        ['git', '-C', args.src_dir, 'log',
+        ['git', '-C', src_dir, 'log',
          '--pretty=format:{}@%h %s'.format(
              github_full_repo_name),
          '{}..{}'.format(previous_version, version)],
