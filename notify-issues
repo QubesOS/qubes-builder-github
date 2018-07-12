@@ -460,6 +460,11 @@ def main():
             add_labels = ["{}-stable".format(args.release_name)]
         elif args.repo_type == 'templates-itl-testing':
             add_labels = ["{}-testing".format(args.release_name)]
+        elif args.repo_type == 'templates-community':
+            delete_labels = ["{}-testing".format(args.release_name)]
+            add_labels = ["{}-stable".format(args.release_name)]
+        elif args.repo_type == 'templates-community-testing':
+            add_labels = ["{}-testing".format(args.release_name)]
         else:
             print "Ignoring {}".format(args.repo_type)
             return
