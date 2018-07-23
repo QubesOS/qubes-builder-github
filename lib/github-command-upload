@@ -87,16 +87,17 @@ upload_for_release() {
 
     allowed_dists=$(get_allowed_dists "$local_builder_dir" "$signer_fpr")
 
+    # remove any override from previous iteration
+    unset DIST_DOM0
+
     # if no specific distribution was requested, upload all of them, unless template
     if [ "$component" != "linux-template-builder" ] && \
             [ "x$dists_and_end" = "xrepo" ]; then
-        dom0_opt=
         if [ "${allowed_dists% dom0}" = "$allowed_dists" ]; then
             # exclude dom0
-            dom0_opt="DIST_DOM0="
+            export DIST_DOM0=""
         fi
         DISTS_VM="${allowed_dists% dom0}" \
-        $dom0_opt \
         COMPONENTS="$component" \
         "$local_builder_dir/scripts/make-with-log" \
             "update-repo-$repo_name"
