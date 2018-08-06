@@ -281,6 +281,9 @@ def get_package_changes(src_dir, git_url, commit_sha):
             stdout=subprocess.PIPE)
         (version_tags, _) = git_proc.communicate()
 
+    if not version_tags:
+        # still nothing - looks there is only one commit - no history
+        return version, version, '', ''
     previous_version = version_tags.splitlines()[0]
 
     git_log_proc = subprocess.Popen(
