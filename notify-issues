@@ -140,12 +140,12 @@ def search_or_create_issue(github_repo, release, component,
         if component.startswith('qubes-template'):
             message_template_path = os.path.join(
                 os.path.dirname(sys.argv[0]),
-                'message-build-report-template'
+                'templates/message-build-report-template'
             )
         else:
             message_template_path = os.path.join(
                 os.path.dirname(sys.argv[0]),
-                'message-build-report'
+                'templates/message-build-report'
             )
         if not os.path.exists(message_template_path):
             print "WARNING: {} does not exist".format(message_template_path)
@@ -184,7 +184,7 @@ def search_or_create_issue(github_repo, release, component,
 def notify_closed_issues(args, repo_type,
         current_commit, previous_commit,
         add_labels, delete_labels):
-    message_template_path = "{}/message-{}-{}".format(
+    message_template_path = "{}/templates/message-{}-{}".format(
         os.path.dirname(sys.argv[0]),
         repo_type,
         args.package_set)
