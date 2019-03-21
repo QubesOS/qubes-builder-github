@@ -23,7 +23,7 @@ fi
 ssh "$HOST" mkdir -p status
 
 check_release_status() {
-    tmp_output="/tmp/${2##*/}-$HOSTNAME-status.html"
+    tmp_output="/tmp/${2##*/}-$(hostname)-status.html"
     make --no-print-directory -C "$2" HTML_FORMAT=1 check-release-status > "$tmp_output"
     scp "$tmp_output" "$HOST:status/"
 }
