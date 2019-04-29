@@ -36,7 +36,10 @@ config_path = os.path.join(
 def qrexec(vm, service, input_data=None):
     p = subprocess.Popen(['/usr/bin/qrexec-client-vm', vm, service],
             stdin=subprocess.PIPE, stdout=open(os.devnull, 'w'))
-    p.communicate(input_data)
+    if input_data is not None:
+        p.communicate(input_data)
+    else:
+        p.stdin.close()
 
 
 def handle(obj):
