@@ -26,6 +26,7 @@ import json
 import sys
 import subprocess
 import os
+import re
 
 config_path = os.path.join(
         os.environ.get('HOME', '/'),
@@ -47,8 +48,9 @@ def handle(obj):
         if 'repository' not in obj:
             return
         repo_name = obj['repository']['full_name']
-        if repo_name.startswith('QubesOS/qubes-'):
-            repo_name = repo_name[len('QubesOS/qubes-'):]
+        prefixed_repo = re.match('.*/qubes-(.*)', repo_name)
+        if prefixed_repo:
+            repo_name = prefixed_repo.group(1)
         else:
             repo_name = repo_name.split('/')[-1]
         try:
