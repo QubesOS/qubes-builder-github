@@ -8,6 +8,7 @@ releases=$(ls ~/status/builder*status.html|
     sort|
     uniq)
 
+# html
 (
 cat ~/status/status-head.html
 for rel in $releases; do
@@ -16,3 +17,12 @@ for rel in $releases; do
 done
 cat ~/status/status-foot.html
 ) > ~/public_html/status.html
+
+# yaml
+(
+for rel in $releases; do
+    printf '%s:\n' "$rel"
+    # we increment yaml level to one
+    cat ~/status/builder-"$rel"*status.yml | sed 's/^\(.*\)/  \1/g'
+done
+) > ~/public_html/status.yml

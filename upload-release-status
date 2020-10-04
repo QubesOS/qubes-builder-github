@@ -23,14 +23,16 @@ fi
 ssh "$HOST" mkdir -p status
 
 check_release_status() {
-    tmp_output="/tmp/${2##*/}-$(hostname)-status.html"
-    make --no-print-directory -C "$2" HTML_FORMAT=1 check-release-status > "$tmp_output"
-    scp "$tmp_output" "$HOST:status/"
+    tmp_output_html="/tmp/${2##*/}-$(hostname)-status.html"
+    tmp_output_yml="/tmp/${2##*/}-$(hostname)-status.yml"
+    make --no-print-directory -C "$2" HTML_FORMAT=1 check-release-status > "${tmp_output_html}"
+    make --no-print-directory -C "$2" YAML_FORMAT=1 check-release-status > "${tmp_output_yml}"
+    scp "${tmp_output_html}" "${tmp_output_yml}" "$HOST:status/"
 }
 
 execute_in_each_builder check_release_status
 
 wait
 
-scp "$status_templates_dir"/status-*.html "$scripts_dir"/combine-status "$HOST:status/"
+scp "$status_templates_dir"/status-*.html "$status_templates_dir"/status-*.yml "$scripts_dir"/combine-status "$HOST:status/"
 ssh "$HOST" status/combine-status
