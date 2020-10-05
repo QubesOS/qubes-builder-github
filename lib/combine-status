@@ -25,4 +25,5 @@ for rel in $releases; do
     # we increment yaml level to one
     cat ~/status/builder-"$rel"*status.yml | sed 's/^\(.*\)/  \1/g'
 done
-) > ~/public_html/status.yml
+) > ~/status/status.yml
+~/status/merge-yaml ~/status/status.yml > ~/public/status.yml

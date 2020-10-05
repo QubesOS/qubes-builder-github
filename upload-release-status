@@ -34,5 +34,5 @@ execute_in_each_builder check_release_status
 
 wait
 
-scp "$status_templates_dir"/status-*.html "$status_templates_dir"/status-*.yml "$scripts_dir"/combine-status "$HOST:status/"
+scp "$status_templates_dir"/status-*.html "$status_templates_dir"/status-*.yml "$scripts_dir"/combine-status "$scripts_dir"/merge-yaml "$HOST:status/"
 ssh "$HOST" status/combine-status

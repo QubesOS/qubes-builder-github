@@ -1,0 +1,12 @@
+#!/usr/bin/python3
+
+import sys
+import hiyapyco
+
+with open(sys.argv[1]) as fd:
+    yaml_str = fd.read()
+
+yamls = yaml_str.split('\n\n')
+
+conf = hiyapyco.load(yamls, method=hiyapyco.METHOD_MERGE)
+print(hiyapyco.dump(conf, default_flow_style=False))
