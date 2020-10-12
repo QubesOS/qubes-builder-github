@@ -1,12 +1,36 @@
 #!/usr/bin/python3
 
-import sys
+import json
 import hiyapyco
+import click
 
-with open(sys.argv[1]) as fd:
-    yaml_str = fd.read()
 
-yamls = yaml_str.split('\n\n')
+@click.command()
+@click.option('--input', required=True, type=click.Path(exists=True),
+              help='Data input in YAML format')
+@click.option('--output', required=True, type=str,
+              help='Data output in specified format')
+@click.option('--format', default='yaml', type=str,
+              help='Format for data output: json or yaml')
+def main(input, output, format):
+    with open(input, 'r') as fd:
+        yaml_str = fd.read()
 
-conf = hiyapyco.load(yamls, method=hiyapyco.METHOD_MERGE)
-print(hiyapyco.dump(conf, default_flow_style=False))
+    # parse data
+    yamls = yaml_str.split('\n\n')
+    parsed_data = hiyapyco.load(yamls, method=hiyapyco.METHOD_MERGE)
+
+    if format == 'yaml':
+        output_data = hiyapyco.dump(parsed_data, default_flow_style=False)
+    elif format == 'json':
+        output_data = json.dumps(parsed_data, indent=4)
+    else:
+        print('Unknown format "%s"', format)
+        return 1
+
+    with open(output, 'w') as fd:
+        fd.write(output_data)
+
+
+if __name__ == '__main__':
+    main()

@@ -8,6 +8,15 @@ releases=$(ls ~/status/builder*status.html|
     sort|
     uniq)
 
+# merge yaml data
+(
+for rel in $releases; do
+    printf '%s:\n' "$rel"
+    # we increment yaml level to one
+    cat ~/status/builder-"$rel"*status.yml | sed 's/^\(.*\)/  \1/g'
+done
+) > ~/status/status.yml
+
 # html
 (
 cat ~/status/status-head.html
@@ -18,12 +27,5 @@ done
 cat ~/status/status-foot.html
 ) > ~/public_html/status.html
 
-# yaml
-(
-for rel in $releases; do
-    printf '%s:\n' "$rel"
-    # we increment yaml level to one
-    cat ~/status/builder-"$rel"*status.yml | sed 's/^\(.*\)/  \1/g'
-done
-) > ~/status/status.yml
-~/status/merge-yaml ~/status/status.yml > ~/public/status.yml
+# json
+~/status/merge-yaml --input ~/status/status.yml --output ~/public/status.json --format json
