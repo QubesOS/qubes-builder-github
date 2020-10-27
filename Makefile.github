@@ -11,7 +11,7 @@ notify-github: pkg_name=$(basename $(basename $(notdir $(firstword $(packages)))
 else ifneq (,$(findstring $(DISTRIBUTION), debian qubuntu))
 notify-github: pkg_name=$(firstword $(release_name_dist) $(release_name_full))
 else
-    $(error Distribution $(DISTRIBUTION) not supported by builder-github plugin)
+notify-github: pkg_name=$(COMPONENT)
 endif
 
 notify-github:
