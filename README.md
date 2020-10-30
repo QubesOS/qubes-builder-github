@@ -182,7 +182,7 @@ Installation
    comments' chapter for details. Service accept the comment body on its stdin.
    See also 'RPC services configuration' chapter.
 
-3. (optional) Install github webhooks (see `github-webhooks` directory)
+3. (optional) Install github webhooks (see `webhooks` directory)
    somewhere reachable from github.com - this probably means `sys-net` in
    default Qubes OS installation. You need to configure a web server there to
    launch them as CGI scripts. Then add the hook(s) to repository/organization
