@@ -99,10 +99,12 @@ upload_for_release() {
         fi
         DISTS_VM="${allowed_dists% dom0}" \
         COMPONENTS="$component" \
+        MAKEREPO=1 UPLOAD=0 \
         "$local_builder_dir/scripts/make-with-log" \
-            "update-repo-$repo_name" || :
+            "update-repo-$repo_name" &&
         DISTS_VM="${allowed_dists% dom0}" \
         COMPONENTS="$component" \
+        MAKEREPO=0 UPLOAD=1 \
         "$local_builder_dir/scripts/make-with-log" \
             "update-repo-$repo_name"
         return $?
@@ -174,6 +176,13 @@ EOF
         COMPONENTS="$component" \
         DISTS_VM="$requested_dists_vm" \
         DIST_DOM0="$requested_dists_dom0" \
+        MAKEREPO=1 UPLOAD=0 \
+        "$local_builder_dir/scripts/make-with-log" \
+            "update-repo-$repo_name" &&
+        COMPONENTS="$component" \
+        DISTS_VM="$requested_dists_vm" \
+        DIST_DOM0="$requested_dists_dom0" \
+        MAKEREPO=0 UPLOAD=1 \
         "$local_builder_dir/scripts/make-with-log" \
             "update-repo-$repo_name"
         return $?
