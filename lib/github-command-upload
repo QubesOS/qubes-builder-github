@@ -100,6 +100,10 @@ upload_for_release() {
         DISTS_VM="${allowed_dists% dom0}" \
         COMPONENTS="$component" \
         "$local_builder_dir/scripts/make-with-log" \
+            "update-repo-$repo_name" || :
+        DISTS_VM="${allowed_dists% dom0}" \
+        COMPONENTS="$component" \
+        "$local_builder_dir/scripts/make-with-log" \
             "update-repo-$repo_name"
         return $?
     fi
