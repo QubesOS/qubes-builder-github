@@ -38,7 +38,7 @@ class Service:
         p = subprocess.Popen(['/usr/bin/qrexec-client-vm', vm, service],
                              stdin=subprocess.PIPE,
                              stdout=open(os.devnull, 'w'))
-        p.communicate(input_data)
+        p.communicate(input_data.encode())
 
     def handle(self, obj):
         try:
