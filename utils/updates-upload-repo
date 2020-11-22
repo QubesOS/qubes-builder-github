@@ -109,7 +109,7 @@ def main():
         issue_no = issue['number']
         labels = [l['name'] for l in issue['labels']['nodes']]
         reactions = [r['content'] for r in issue['reactions']['nodes']]
-        match = re.search(r"`Upload [a-z0-9. -]* {}(?: vm-[a-z0-9-]*)? repo`".format(args.repo_name), issue['body'])
+        match = re.search(r"`Upload [a-z0-9. -]* {}(?: vm-[a-z0-9+-]*)? repo`".format(args.repo_name), issue['body'])
         if not match:
             if args.verbose:
                 print("Warning: issue {} has no cmd for {}".format(issue_no, args.repo_name))
