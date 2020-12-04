@@ -83,7 +83,7 @@ def get_issue_no_from_http_resp(resp):
     # search for the first line with '"number":' and return that number
     # this intentionally avoids throwing json parser at the response (one
     #  parser less to trust, even if simple one)
-    for line in resp.content.decode('ascii').splitlines():
+    for line in resp.content.decode('ascii', errors='replace').splitlines():
         if '"number":' in line:
             match = number_re.search(line)
             if match:
