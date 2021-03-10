@@ -85,7 +85,7 @@ def run(service_name):
     POST run service
     """
     event_type = request.headers.get("X-GitHub-Event", "")
-    if event_type not in ("push", "issue_comment"):
+    if event_type not in ("push", "issue_comment", "pull_request"):
         return Response("OK", status=200, mimetype='text/plain')
 
     if service_name not in webhooks_config.get("services", []):
