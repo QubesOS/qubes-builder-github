@@ -6,7 +6,7 @@ update-repo-from-snapshot: release_name_dist_tmp = $(word 3,$(pkg_filter))_$(wor
 update-repo-from-snapshot: release_name_dist = $(subst $(coma),,$(subst $(bracket),,$(release_name_dist_tmp)))
 update-repo-from-snapshot: notify-github
 
-ifneq (,$(findstring $(DISTRIBUTION), fedora centos))
+ifneq (,$(findstring $(DISTRIBUTION), fedora centos centos-stream))
 notify-github: pkg_name=$(basename $(basename $(notdir $(firstword $(packages)))))
 else ifneq (,$(findstring $(DISTRIBUTION), debian qubuntu))
 notify-github: pkg_name=$(firstword $(release_name_dist) $(release_name_full))
