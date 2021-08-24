@@ -3,7 +3,7 @@
 The component `@COMPONENT@` (including package `@PACKAGE_NAME@`) has been pushed to the `@RELEASE_NAME@` testing repository for the Fedora template.
 To test this update, please install it with the following command:
 ```
-sudo yum update --enablerepo=qubes-vm-@RELEASE_NAME@-current-testing
+sudo dnf update --enablerepo=qubes-vm-@RELEASE_NAME@-current-testing
 ```
 [Changes included in this update][commits]
 
