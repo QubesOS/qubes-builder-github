@@ -50,7 +50,7 @@ import datetime
 parser = argparse.ArgumentParser("updates-upload-repo")
 
 parser.add_argument('--verbose', action='store_true')
-parser.add_argument('--days', action='store', type=int, default=7, help='ensure package at least this time in testing (default: %(default)d)')
+parser.add_argument('--days', action='store', type=int, default=5, help='ensure package at least this time in testing (default: %(default)d)')
 parser.add_argument('release_name')
 parser.add_argument('repo_name', help='target repo name, like \'current\' or \'templates-itl\'; list will include components applicable to the repo')
 group = parser.add_mutually_exclusive_group(required=True)
@@ -133,7 +133,7 @@ def main():
                 extra_info += '\033[31m {}\U0001F44E \033[m'.format(thumb_down)
             if 'buggy' in labels:
                 extra_info += '\033[31m buggy\033[m'
-            if days >= 7:
+            if days >= args.days:
                 color = '\033[32m'
             else:
                 color = '\033[31m'
