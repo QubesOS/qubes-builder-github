@@ -43,7 +43,9 @@ read_stdin_command_and_verify_signature() {
 
     # this will read from standard input of the service, the data should be
     # considered untrusted
-    tr -d '\r' | awk -b \
+    LC_ALL=C head -c 4096 |
+    LC_ALL=C tr -d '\r' |
+    LC_ALL=C awk -b \
             -v in_command=0 \
             -v in_signature=0 \
             -v output_data="$tmpdir/untrusted_command.tmp" \
