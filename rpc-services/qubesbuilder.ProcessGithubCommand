@@ -16,7 +16,7 @@
 #
 # See README.md for detailed description.
 
-set -e
+set -eo pipefail
 
 keyring_path="$HOME/.config/qubes-builder-github/trusted-keys-for-commands.gpg"
 
