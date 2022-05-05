@@ -47,6 +47,8 @@ class Service:
             if obj['action'] != 'created':
                 return
             comment_body = obj['comment']['body']
+            # strip carriage returns
+            comment_body = comment_body.replace('\r', '')
             # skip comment not having signed part at all
             if '-----BEGIN PGP SIGNED MESSAGE-----' not in comment_body:
                 return
