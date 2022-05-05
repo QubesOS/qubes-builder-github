@@ -114,9 +114,9 @@ read_stdin_command_and_verify_signature() {
 
     # extract signer fingerprint
     if [ -n "$local_signer" ]; then
-        eval "$local_signer"="$(grep -Po \
+        eval "$local_signer"="'$(grep -Po \
             '^\[GNUPG:\] VALIDSIG (([0-9A-F-]+ ){9}|)\K([0-9A-F]*)' \
-            "$tmpdir/gpg-status")"
+            "$tmpdir/gpg-status")'"
     fi
     rm -f "$tmpdir/gpg-status"
 
