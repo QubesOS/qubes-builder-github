@@ -49,6 +49,7 @@ read_stdin_command_and_verify_signature() {
     LC_ALL=C awk -b \
             -v in_command=0 \
             -v in_signature=0 \
+            -v command_too_long=0 \
             -v output_data="$tmpdir/untrusted_command.tmp" \
             -v output_sig="$tmpdir/untrusted_command.sig" \
             '
@@ -73,7 +74,11 @@ read_stdin_command_and_verify_signature() {
             }
         }
         {
-            if (in_command) print >output_data
+            if (in_command) {
+                if (command_too_long) { fail("extra lines in command") }
+                print >output_data;
+                command_too_long = 1;
+            }
             if (in_signature) print >output_sig
         }
         /^-----END PGP SIGNATURE-----$/ {
