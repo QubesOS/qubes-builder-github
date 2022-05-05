@@ -56,6 +56,7 @@ read_stdin_command_and_verify_signature() {
             print msg > "/dev/stderr"
             exit 1
         }
+        length($0) > 256 { fail("line too long"); }
         /[^A-Za-z0-9_.+/ -]/ { fail("junk character in string"); }
         /^-----BEGIN PGP SIGNED MESSAGE-----$/ {
             # skip first 3 lines (this one, hash declaration and empty line)
