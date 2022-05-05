@@ -82,7 +82,7 @@ read_stdin_command_and_verify_signature() {
             if (in_signature) print >output_sig
         }
         /^-----END PGP SIGNATURE-----$/ {
-            in_signature=0
+            exit
         }
     '
 
