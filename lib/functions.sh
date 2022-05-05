@@ -45,12 +45,18 @@ read_stdin_command_and_verify_signature() {
     # considered untrusted
     LC_ALL=C head -c 4096 |
     LC_ALL=C tr -d '\r' |
+    LC_ALL=C tr '\0' '\001' |
     LC_ALL=C awk -b \
             -v in_command=0 \
             -v in_signature=0 \
             -v output_data="$tmpdir/untrusted_command.tmp" \
             -v output_sig="$tmpdir/untrusted_command.sig" \
             '
+        function fail(msg) {
+            print msg > "/dev/stderr"
+            exit 1
+        }
+        /[^A-Za-z0-9_.+/ -]/ { fail("junk character in string"); }
         /^-----BEGIN PGP SIGNED MESSAGE-----$/ {
             # skip first 3 lines (this one, hash declaration and empty line)
             in_command=4
