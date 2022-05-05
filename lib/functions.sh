@@ -50,7 +50,7 @@ read_stdin_command_and_verify_signature() {
             -v in_command=0 \
             -v in_signature=0 \
             -v command_too_long=0 \
-            -v output_data="$tmpdir/untrusted_command.tmp" \
+            -v output_data="$tmpdir/untrusted_command" \
             -v output_sig="$tmpdir/untrusted_command.sig" \
             '
         function fail(msg) {
@@ -76,7 +76,10 @@ read_stdin_command_and_verify_signature() {
         {
             if (in_command) {
                 if (command_too_long) { fail("extra lines in command") }
-                print >output_data;
+                # gpg --clearsign apparently ignore trailing newline while
+                # calculating hash. So must do the same here for signature
+                # verification. This is stupid.
+                printf "%s", $0 >output_data;
                 command_too_long = 1;
             }
             if (in_signature) print >output_sig
@@ -89,15 +92,11 @@ read_stdin_command_and_verify_signature() {
     # make sure we don't read anything else from stdin
     exec </dev/null
 
-    if [ ! -r "$tmpdir/untrusted_command.tmp" ] || \
+    if [ ! -r "$tmpdir/untrusted_command" ] || \
             [ ! -r "$tmpdir/untrusted_command.sig" ]; then
         echo "Missing parts of gpg signature" >&2
         exit 1
     fi
-
-    # gpg --clearsign apparently ignore trailing newline while calculating hash. So
-    # must do the same here for signature verification. This is stupid.
-    head -c -1 "$tmpdir/untrusted_command.tmp" > "$tmpdir/untrusted_command"
 
     if ! gpgv2 --keyring "$local_keyring_path" \
             --status-fd=3 \
