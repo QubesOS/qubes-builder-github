@@ -53,8 +53,11 @@ class Service:
             # strip carriage returns
             comment_body = comment_body.replace('\r', '')
             # skip comment not having signed part at all
-            if '-----BEGIN PGP SIGNED MESSAGE-----' not in comment_body:
+            try:
+                offset = comment_body.index('-----BEGIN PGP SIGNED MESSAGE-----\nHash: ')
+            except ValueError:
                 return
+            comment_body = comment_body[offset:]
             try:
                 with open(self.config_path) as config:
                     build_vms = config.read().splitlines()
