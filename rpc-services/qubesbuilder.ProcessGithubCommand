@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash --
 
 # Service called from network-exposed VM (probably sys-net) into actual build
 # VM to (potentially) trigger moving packages from current-testing to current
