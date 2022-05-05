@@ -47,6 +47,9 @@ class Service:
             if obj['action'] != 'created':
                 return
             comment_body = obj['comment']['body']
+            # check the type of the JSON response
+            if type(comment_body) is not str:
+                return
             # strip carriage returns
             comment_body = comment_body.replace('\r', '')
             # skip comment not having signed part at all
