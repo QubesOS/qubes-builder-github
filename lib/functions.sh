@@ -75,12 +75,17 @@ read_stdin_command_and_verify_signature() {
         }
         {
             if (in_command) {
-                if (command_too_long) { fail("extra lines in command") }
-                # gpg --clearsign apparently ignore trailing newline while
-                # calculating hash. So must do the same here for signature
-                # verification. This is stupid.
-                printf "%s", $0 >output_data;
-                command_too_long = 1;
+                if (command_too_long) {
+                    fail("extra lines in command")
+                } else if (/^[A-Za-z0-9_. -]+$/) {
+                    # gpg --clearsign apparently ignore trailing newline while
+                    # calculating hash. So must do the same here for signature
+                    # verification. This is stupid.
+                    printf "%s", $0 >output_data;
+                    command_too_long = 1;
+                } else {
+                    fail("Bad character in command");
+                }
             }
             if (in_signature) print >output_sig
         }
