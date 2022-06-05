@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/bin/bash --
+set -eu
 
 # Service called from network-exposed VM (probably sys-net) into actual build
 # VM to (potentially) trigger a build when a properly signed version tag is
@@ -8,18 +9,34 @@
 # repository (branch configured in builder.conf) contains new version tag at
 # the top.
 
+set -x
+
 # Don't read anything from standard input
 exec </dev/null
 
-untrusted_component_name="$1"
-shift
+scripts_dir="/usr/local/lib/qubes-builder-github"
 
 # also, don't return anything; log it locally, just in case
 mkdir -p "$HOME/builder-github-logs"
 log_basename="$HOME/builder-github-logs/$(date +%s)-$$"
 exec >>"${log_basename}.log" 2>&1
 
+if [[ "$#" -ne 1 ]]; then
+    echo "Wrong number of arguments (expected 1, got $#)" >&2
+    exit 1
+fi
+
+untrusted_component_name="$1"
+shift
+
+# check that component name is not too long
+if [[ "${#untrusted_component_name}" -gt 64 ]]; then
+    echo "Component name too long (got ${#untrusted_component_name}, limit 64)" >&2
+    exit 1
+fi
+
 # validate component name - forbid '/', '.' and space
+# note that some validation has already been done by qrexec
 case "${untrusted_component_name}" in
     *[/.\ ]*)
         echo "Forbidden character" >&2
@@ -51,9 +68,10 @@ while read -r release_name builder_dir; do
     # we already verified if $untrusted_component_name do not contains '/' or
     # '.', now lets check if that component really exists in this builder instance
     IFS=$' \t\n'
-    for component in $(make -s -C "$builder_dir" get-var GET_VAR=COMPONENTS); do
+    cd "$builder_dir"
+    for component in $(./qb config get-var components); do
         # check also for mismatching component and git repository name
-        component_url=$(make -s -C "$builder_dir" get-var GET_VAR=GIT_URL_"${component//-/_}")
+        component_url=$(./qb -c "$component" config get-components --attribute url)
         component_repo=$(basename "$component_url" .git)
         # strip 'qubes-' prefix, if any
         component_repo=${component_repo#qubes-}
@@ -64,8 +82,8 @@ while read -r release_name builder_dir; do
             # being built at the same time in the same builder).
             # This is implicit queueing mechanism.
             flock -x "$builder_dir/builder.lock" \
-                "$builder_dir/scripts/auto-build" \
-                "$component" \
+                "$scripts_dir"/auto-build.py \
+                component "$builder_dir" "$component" \
                 >>"${log_basename}-${component}-${release_name}.log" 2>&1 </dev/null &
         fi
     done

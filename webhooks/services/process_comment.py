@@ -20,44 +20,66 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-import json
 import sys
 import subprocess
 import os
+import re
+
+_trailing_space = re.compile(rb"[ \r\t\f\v]*\n")
 
 
 class Service:
     def __init__(self):
         self.config_path = os.path.join(
-            os.environ.get('HOME', '/'),
-            '.config',
-            'qubes-builder-github',
-            'build-vms.list')
+            os.environ.get("HOME", "/"),
+            ".config",
+            "qubes-builder-github",
+            "build-vms.list",
+        )
 
     def qrexec(self, vm, service, input_data=None):
-        p = subprocess.Popen(['/usr/bin/qrexec-client-vm', vm, service],
-                             stdin=subprocess.PIPE,
-                             stdout=open(os.devnull, 'w'))
-        p.communicate(input_data.encode())
+        with subprocess.Popen(
+            ["/usr/bin/qrexec-client-vm", "--", vm, service],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+        ) as p:
+            p.communicate(input_data)
 
     def handle(self, obj):
         try:
-            if 'comment' not in obj:
+            if obj["action"] != "created":
                 return
-            if obj['action'] != 'created':
-                return
-            comment_body = obj['comment']['body']
-            # skip comment not having signed part at all
-            if '-----BEGIN PGP SIGNED MESSAGE-----' not in comment_body:
-                return
-            try:
-                with open(self.config_path) as config:
-                    build_vms = config.read().splitlines()
-            except IOError as e:
-                print(str(e), file=sys.stderr)
-                return
-            for vm in build_vms:
-                self.qrexec(vm, 'qubesbuilder.ProcessGithubCommand',
-                            comment_body + '\n')
-        except KeyError:
-            pass
+            comment_body = obj["comment"]["body"]
+        except (TypeError, KeyError):
+            return
+        if type(comment_body) is not str:
+            return
+        try:
+            comment_body = comment_body.encode("ascii", "strict")
+        except UnicodeEncodeError:
+            return  # ignore non-ASCII commands
+
+        # strip trailing space, including carriage returns
+        comment_body = _trailing_space.subn(b"\n", comment_body)[0]
+
+        # skip comment not having signed part at all
+        try:
+            offset = comment_body.index(b"-----BEGIN PGP SIGNED MESSAGE-----\nHash: ")
+        except ValueError:
+            return
+        comment_body = comment_body[offset:]
+        end_index = b"\n-----END PGP SIGNATURE-----"
+        try:
+            offset = comment_body.index(end_index)
+        except ValueError:
+            return
+        # strip stuff after signature and add trailing newline
+        comment_body = comment_body[: offset + len(end_index)] + b"\n"
+        try:
+            with open(self.config_path) as config:
+                build_vms = config.read().splitlines()
+        except IOError as e:
+            print(str(e), file=sys.stderr)
+            return
+        for vm in build_vms:
+            self.qrexec(vm, "qubesbuilder.ProcessGithubCommand", comment_body)

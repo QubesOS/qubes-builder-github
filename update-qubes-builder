@@ -1,0 +1,54 @@
+#!/bin/bash -e
+
+# This is script to automate Qubes Builder update process in reaction to pushing updates
+# sources to git.
+
+if [ "$DEBUG" == 1 ]; then
+    set -x
+fi
+
+usage() {
+    echo "Usage: $0 builder-dir" >&2
+}
+
+verify_git_obj() {
+    local content newsig_number
+    content=$(git -c gpg.program=gpg -c gpg.minTrustLevel=fully "verify-$1" --raw -- "$2" 2>&1 >/dev/null) &&
+        newsig_number=$(printf %s\\n "$content" | grep -c '^\[GNUPG:] NEWSIG') &&
+        [ "$newsig_number" = 1 ] && {
+        printf %s\\n "$content" |
+            grep '^\[GNUPG:] TRUST_\(FULLY\|ULTIMATE\) 0 pgp$' >/dev/null
+    }
+}
+
+
+if [ $# -lt 1 ]; then
+    usage
+    exit 1
+fi
+
+set -e
+
+# Get builder directory from first arg and remove
+# it from the other args that are passed to builder
+BUILDER_DIR="$1"
+shift 1
+
+cd "$BUILDER_DIR" || {
+    echo "ERROR: Invalid builder directory."
+    exit 1
+}
+
+# Sanity checks
+if [ "${1##*/}" != "${1}" ]; then
+    echo "ERROR: Found '/' in argument." >&2
+    exit 1
+fi
+
+cur_branch="$(git branch --show-current)"
+git fetch origin "$cur_branch"
+if ! verify_git_obj commit FETCH_HEAD; then
+    rm .git/FETCH_HEAD
+    exit 1
+fi
+git merge --ff-only FETCH_HEAD

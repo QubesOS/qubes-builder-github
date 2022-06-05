@@ -1,8 +1,0 @@
-dist: trusty
-language: shell
-script:
- - shellcheck rpc-services/* lib/* upload-release-status
-
-branches:
-  except:
-    - /.*_.*/

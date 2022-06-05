@@ -29,30 +29,31 @@ import re
 class Service:
     def __init__(self):
         self.config_path = os.path.join(
-            os.environ.get('HOME', '/'),
-            '.config',
-            'qubes-builder-github',
-            'build-vms.list')
+            os.environ.get("HOME", "/"),
+            ".config",
+            "qubes-builder-github",
+            "build-vms.list",
+        )
 
     def qrexec(self, vm, service, input_data=None):
-        p = subprocess.Popen(['/usr/bin/qrexec-client-vm', vm, service],
-                             stdin=subprocess.PIPE,
-                             stdout=open(os.devnull, 'w'))
-        if input_data is not None:
-            p.communicate(input_data)
-        else:
-            p.stdin.close()
+        with subprocess.Popen(
+            ["/usr/bin/qrexec-client-vm", "--", vm, service],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+        ) as p:
+            if input_data is not None:
+                p.communicate(input_data)
 
     def handle(self, payload):
         try:
-            if 'repository' not in payload:
+            if "repository" not in payload:
                 return
-            repo_name = payload['repository']['full_name']
-            prefixed_repo = re.match('.*/qubes-(.*)', repo_name)
+            repo_name = payload["repository"]["full_name"]
+            prefixed_repo = re.match(".*/qubes-(.*)", repo_name)
             if prefixed_repo:
                 repo_name = prefixed_repo.group(1)
             else:
-                repo_name = repo_name.split('/')[-1]
+                repo_name = repo_name.split("/")[-1]
             try:
                 with open(self.config_path) as config:
                     build_vms = config.read().splitlines()
@@ -60,7 +61,6 @@ class Service:
                 print(str(e), file=sys.stderr)
                 return
             for vm in build_vms:
-                self.qrexec(vm, 'qubesbuilder.TriggerBuild+' + repo_name)
+                self.qrexec(vm, "qubesbuilder.TriggerBuild+" + repo_name)
         except KeyError:
             pass
-
