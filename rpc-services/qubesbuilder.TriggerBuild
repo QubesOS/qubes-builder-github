@@ -82,7 +82,7 @@ while read -r release_name builder_dir; do
             # being built at the same time in the same builder).
             # This is implicit queueing mechanism.
             flock -x "$builder_dir/builder.lock" \
-                "$scripts_dir"/auto-build.py \
+                "$scripts_dir"/auto-build \
                 component "$builder_dir" "$component" \
                 >>"${log_basename}-${component}-${release_name}.log" 2>&1 </dev/null &
         fi
