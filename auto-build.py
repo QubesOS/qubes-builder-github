@@ -112,6 +112,7 @@ class BaseAutoBuild:
             self.display_head_info(args)
             try:
                 func(*args)
+                log.debug("> done")
             except PluginError as e:
                 p.stdin.close()
                 p.wait()
@@ -124,7 +125,6 @@ class BaseAutoBuild:
                 log_file = list(p.stdout)
                 log_file = log_file[0].rstrip("\n")
             finally:
-                log.debug("> done")
                 log.removeHandler(qrexec_stream)
             return log_file
 
