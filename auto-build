@@ -33,6 +33,9 @@ from qubesbuilder.plugins.template import TEMPLATE_VERSION
 
 PROJECT_PATH = Path(__file__).resolve().parent
 
+log = init_logging(level="DEBUG")
+log.name = "auto-build"
+
 
 def raise_timeout(signum, frame):
     raise TimeoutError
@@ -50,13 +53,13 @@ def timeout(time):
         signal.signal(signal.SIGALRM, signal.SIG_IGN)
 
 
-log = init_logging(level="DEBUG")
-log.name = "auto-build"
-
-
 class AutoBuildError(Exception):
     def __init__(self, log_file=None):
         self.log_file = log_file
+
+
+class AutoBuildTimeout(Exception):
+    pass
 
 
 class BaseAutoBuild:
@@ -65,7 +68,7 @@ class BaseAutoBuild:
         self.builder_conf = self.builder_dir / "builder.yml"
         self.state_dir = Path(state_dir).resolve()
         self.config = Config(self.builder_conf)
-
+        self.timeout = 21600
         self.qubes_release = self.config.get("qubes-release")
 
         if not self.builder_dir.exists():
@@ -156,6 +159,10 @@ class AutoBuild(BaseAutoBuild):
         if not self.repository_publish:
             raise AutoBuildError(f"No repository defined for component publication.")
 
+        self.timeout = self.components[0].timeout
+
+        self.built_for_dist = []
+
     def run_stages(self, stages):
         for stage in stages:
             _component_stage(
@@ -165,7 +172,12 @@ class AutoBuild(BaseAutoBuild):
                 distributions=self.distributions,
             )
 
-    def notify_build_status(self, dist, status, log_file=None):
+    def notify_build_status_on_timeout(self):
+        for dist in self.distributions:
+            if dist.name not in self.built_for_dist:
+                self.notify_build_status(dist, "failed", additional_info="Timeout")
+
+    def notify_build_status(self, dist, status, log_file=None, additional_info=None):
         notify_issues_cmd = [
             f"{str(PROJECT_PATH)}/notify-issues",
             f"--message-templates-dir={str(PROJECT_PATH)}/templates",
@@ -175,6 +187,9 @@ class AutoBuild(BaseAutoBuild):
             notify_issues_cmd += [
                 f"--build-log={self.get_build_log_url(log_file=log_file)}"
             ]
+
+        if additional_info:
+            notify_issues_cmd += [f"--additional-info={str(additional_info)}"]
 
         notify_issues_cmd += [
             "build",
@@ -191,7 +206,7 @@ class AutoBuild(BaseAutoBuild):
             msg = f"{self.components[0].name}:{dist}: Failed to notify GitHub: {str(e)}"
             log.error(msg)
 
-    def notify_upload_status(self, dist, log_file=None):
+    def notify_upload_status(self, dist, log_file=None, additional_info=None):
         notify_issues_cmd = [
             f"{str(PROJECT_PATH)}/notify-issues",
             f"--message-templates-dir={str(PROJECT_PATH)}/templates",
@@ -201,6 +216,9 @@ class AutoBuild(BaseAutoBuild):
             notify_issues_cmd += [
                 f"--build-log={self.get_build_log_url(log_file=log_file)}"
             ]
+
+        if additional_info:
+            notify_issues_cmd += [f"--additional-info={str(additional_info)}"]
 
         component = self.components[0]
 
@@ -255,8 +273,6 @@ class AutoBuild(BaseAutoBuild):
             _component_stage, self.config, self.components, self.distributions, "fetch"
         )
 
-        built_for_dist = []
-
         for dist in self.distributions:
             release_status = _check_release_status_for_component(
                 config=self.config,
@@ -291,18 +307,26 @@ class AutoBuild(BaseAutoBuild):
 
                     self.notify_upload_status(dist, build_log_file)
 
-                    built_for_dist.append(dist)
+                    self.built_for_dist.append(dist)
                 except AutoBuildError as autobuild_exc:
                     self.notify_build_status(
                         dist, "failed", log_file=autobuild_exc.log_file
                     )
                     pass
+                except TimeoutError as timeout_exc:
+                    raise AutoBuildTimeout(
+                        "Timeout reached for build!"
+                    ) from timeout_exc
                 except Exception as exc:
-                    self.notify_build_status(dist, "failed")
+                    self.notify_build_status(
+                        dist,
+                        "failed",
+                        additional_info=f"Internal error: '{str(exc.__class__.__name__)}'",
+                    )
                     log.error(str(exc))
                     pass
 
-        if not built_for_dist:
+        if not self.built_for_dist:
             log.warning(
                 "Nothing was built, something gone wrong or version tag was not found."
             )
@@ -324,6 +348,8 @@ class AutoBuildTemplate(BaseAutoBuild):
         if not self.repository_publish:
             raise AutoBuildError(f"No repository defined for template publication.")
 
+        self.timeout = self.templates[0].timeout
+
     def run_stages(self, stages):
         for stage in stages:
             _template_stage(
@@ -333,7 +359,10 @@ class AutoBuildTemplate(BaseAutoBuild):
                 template_timestamp=self.template_timestamp,
             )
 
-    def notify_build_status(self, status, log_file=None):
+    def notify_build_status_on_timeout(self):
+        self.notify_build_status("failed", additional_info="Timeout")
+
+    def notify_build_status(self, status, log_file=None, additional_info=None):
         notify_issues_cmd = [
             f"{str(PROJECT_PATH)}/notify-issues",
             f"--message-templates-dir={str(PROJECT_PATH)}/templates",
@@ -343,6 +372,9 @@ class AutoBuildTemplate(BaseAutoBuild):
             notify_issues_cmd += [
                 f"--build-log={self.get_build_log_url(log_file=log_file)}"
             ]
+
+        if additional_info:
+            notify_issues_cmd += [f"--additional-info={str(additional_info)}"]
 
         template = self.templates[0]
         package_name = f"qubes-template-{template.name}-{TEMPLATE_VERSION}-{self.template_timestamp}"
@@ -362,7 +394,7 @@ class AutoBuildTemplate(BaseAutoBuild):
             msg = f"{template}: Failed to notify GitHub: {str(e)}"
             log.error(msg)
 
-    def notify_upload_status(self, log_file=None):
+    def notify_upload_status(self, log_file=None, additional_info=None):
         notify_issues_cmd = [
             f"{str(PROJECT_PATH)}/notify-issues",
             f"--message-templates-dir={str(PROJECT_PATH)}/templates",
@@ -372,6 +404,9 @@ class AutoBuildTemplate(BaseAutoBuild):
             notify_issues_cmd += [
                 f"--build-log={self.get_build_log_url(log_file=log_file)}"
             ]
+
+        if additional_info:
+            notify_issues_cmd += [f"--additional-info={str(additional_info)}"]
 
         template = self.templates[0]
         package_name = f"qubes-template-{template.name}-{TEMPLATE_VERSION}-{self.template_timestamp}"
@@ -458,8 +493,13 @@ class AutoBuildTemplate(BaseAutoBuild):
             except AutoBuildError as autobuild_exc:
                 self.notify_build_status("failed", log_file=autobuild_exc.log_file)
                 pass
+            except TimeoutError as timeout_exc:
+                raise AutoBuildTimeout("Timeout reached for build!") from timeout_exc
             except Exception as exc:
-                self.notify_build_status("failed")
+                self.notify_build_status(
+                    "failed",
+                    additional_info=f"Internal error: '{str(exc.__class__.__name__)}'",
+                )
                 log.error(str(exc))
                 pass
 
@@ -503,7 +543,12 @@ def main():
             template_timestamp=args.template_timestamp,
             state_dir=args.state_dir,
         )
-    cli.run()
+    with timeout(cli.timeout):
+        try:
+            cli.run()
+        except AutoBuildTimeout as autobuild_exc:
+            cli.notify_build_status_on_timeout()
+            raise AutoBuildTimeout(str(autobuild_exc))
 
 
 if __name__ == "__main__":

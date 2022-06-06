@@ -314,9 +314,13 @@ class NotifyIssueCli:
     ):
         message = f"message-{repo_type}-{self.dist.package_set}"
         if (self.message_templates_dir / f"{message}-{self.dist.name}").exists():
-            message_template_path = self.message_templates_dir / f"{message}-{self.dist.name}"
+            message_template_path = (
+                self.message_templates_dir / f"{message}-{self.dist.name}"
+            )
         elif (self.message_templates_dir / f"{message}-{self.dist.fullname}").exists():
-            message_template_path = self.message_templates_dir / f"{message}-{self.dist.name}"
+            message_template_path = (
+                self.message_templates_dir / f"{message}-{self.dist.name}"
+            )
         else:
             log.warning("Cannot find message template not adding comments")
             message_template_path = None
@@ -403,6 +407,7 @@ class NotifyIssueCli:
         previous_stable_commit_sha,
         build_status=None,
         build_log=None,
+        additional_info=None,
     ):
 
         if build_status == "building":
@@ -412,13 +417,17 @@ class NotifyIssueCli:
                 report_message = f"Package for {dist_label} failed to build ([build log]({build_log}))."
             else:
                 report_message = f"Package for {dist_label} failed to build."
+            if additional_info:
+                report_message = f"{report_message.rstrip('.')} ({additional_info})."
         else:
             if build_log:
-                report_message = f"Package for {dist_label} was built ([build log]({build_log})) and uploaded to {repo_type} repository"
+                report_message = f"Package for {dist_label} was built ([build log]({build_log})) and uploaded to {repo_type} repository."
             else:
                 report_message = (
-                    f"Package for {dist_label} was uploaded to {repo_type} repository"
+                    f"Package for {dist_label} was uploaded to {repo_type} repository."
                 )
+            if additional_info:
+                report_message = f"{report_message.rstrip('.')} ({additional_info})."
 
         component = self.src_dir.name
 
@@ -498,6 +507,7 @@ def main():
     parser.add_argument("--build-log", help="Build log name in build-logs repository")
     parser.add_argument("--message-templates-dir", help="Message templates directory")
     parser.add_argument("--github-report-repo-name", help="Github repository to report")
+    parser.add_argument("--additional-info", help="Add additional info on comment")
 
     subparsers = parser.add_subparsers(help="command")
 
@@ -559,8 +569,9 @@ def main():
         return 1
 
     message_templates_dir = (
-        Path(args.message_templates_dir).resolve() if args.message_templates_dir else Path(
-            "templates").resolve()
+        Path(args.message_templates_dir).resolve()
+        if args.message_templates_dir
+        else Path("templates").resolve()
     )
     if not message_templates_dir.exists():
         log.error("Cannot find message templates directory.")
@@ -667,6 +678,7 @@ def main():
             previous_stable_commit_sha=previous_stable_commit,
             build_status=build_status,
             build_log=args.build_log,
+            additional_info=args.additional_info,
         )
     except NotifyIssueError as e:
         log.error(str(e))
