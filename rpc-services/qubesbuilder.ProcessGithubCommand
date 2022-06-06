@@ -32,9 +32,9 @@ read_stdin_command_and_verify_signature "$scripts_dir" "$keyring_path" "${tmpdir
 read -r action args < "$tmpdir/command"
 
 case "$action" in
-    Upload)
-        "$scripts_dir/github-command-upload" "$tmpdir/command" "$command_signer"
-        ;;
+#    Upload)
+#        "$scripts_dir/github-command-upload" "$tmpdir/command" "$command_signer"
+#        ;;
     Build-template)
         "$scripts_dir/github-command-build-template" "$tmpdir/command" "$command_signer"
         ;;

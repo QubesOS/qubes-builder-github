@@ -59,9 +59,6 @@ if [ "${timestamp::-1}" -gt "$timestamp_max" ] || [ "${timestamp::-1}" -lt "$tim
     exit 1
 fi
 
-# enable logging (use qrexec policy to redirect to the right VM)
-export QUBES_BUILD_LOG_CMD="qrexec-client-vm 'dom0' qubesbuilder.BuildLog"
-
 build_template_for_release() {
     local_config_release_name="$1"
     local_builder_dir="$2"
