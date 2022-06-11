@@ -450,10 +450,10 @@ class AutoBuildTemplate(BaseAutoBuild):
         if timestamp_file.exists():
             try:
                 timestamp_existing = datetime.datetime.strptime(
-                    timestamp_file.read_text().rstrip("\n"), "%Y%m%d%H%MZ"
+                    timestamp_file.read_text().rstrip("\n"), "%Y%m%d%H%M"
                 )
                 template_timestamp = datetime.datetime.strptime(
-                    self.template_timestamp, "%Y%m%d%H%MZ"
+                    self.template_timestamp, "%Y%m%d%H%M"
                 )
             except (OSError, ValueError) as exc:
                 raise AutoBuildError(
@@ -461,7 +461,7 @@ class AutoBuildTemplate(BaseAutoBuild):
                 ) from exc
             if template_timestamp < timestamp_existing:
                 log.info(
-                    f"Newer template ({timestamp_existing.strftime('%Y%m%d%H%MZ')}) already built."
+                    f"Newer template ({timestamp_existing.strftime('%Y%m%d%H%M')}) already built."
                 )
                 return
 

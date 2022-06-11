@@ -130,7 +130,7 @@ Parameters:
     `builders.list` configuration and name used in updates repositories
     (apt/yum/...)
   - `dist` - template code name, as defined in builder.yml, `templates` option
-  - `timestamp` - timestamp part of template version, in form `%Y%m%d%H%MZ`, UTC
+  - `timestamp` - timestamp part of template version, in form `%Y%m%d%H%M`, UTC
     (for example `201806281345Z`); must be not older than 1h and not greater
     than 5 minutes into the future
   

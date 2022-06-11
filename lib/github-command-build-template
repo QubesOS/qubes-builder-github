@@ -46,7 +46,7 @@ esac
 # release_name verified in build_template_for_release function
 # dist verified in build_template_for_release function
 
-if ! printf "%s" "$timestamp" | grep -q "^[0-9]\{12\}Z$"; then
+if ! printf "%s" "$timestamp" | grep -q "^[0-9]\{12\}$"; then
     echo "Invalid timestamp format" >&2
     exit 1
 fi
@@ -54,7 +54,7 @@ fi
 timestamp_format="%Y%m%d%H%M"
 timestamp_max=$(date -u -d '+5 min' +$timestamp_format)
 timestamp_min=$(date -u -d '-1 hour' +$timestamp_format)
-if [ "${timestamp::-1}" -gt "$timestamp_max" ] || [ "${timestamp::-1}" -lt "$timestamp_min" ]; then
+if [ "${timestamp}" -gt "$timestamp_max" ] || [ "${timestamp}" -lt "$timestamp_min" ]; then
     echo "Timestamp outside of allowed range" >&2
     exit 1
 fi
