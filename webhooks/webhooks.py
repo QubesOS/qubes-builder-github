@@ -23,6 +23,8 @@ import os
 import json
 import logging
 import importlib
+import hmac
+import hashlib
 
 from flask import Flask, jsonify, request, Response
 
@@ -90,6 +92,20 @@ def run(service_name):
             event_type_gitlab not in ("Pipeline Hook", "Job Hook"):
         return Response("OK", status=200, mimetype='text/plain')
 
+    payload_data = request.data
+    if 'webhook_secret' in webhooks_config:
+        if event_type_github:
+            hmac_value = 'sha256=' + hmac.new(webhooks_config['webhook_secret'].encode(),
+                                              payload_data,
+                                              hashlib.sha256).hexdigest()
+            if hmac_value != request.headers.get('X-Hub-Signature-256'):
+                return Response('invalid hmac', status=403, mimetype='text/plain')
+        elif event_type_gitlab:
+            if webhooks_config['webhook_secret'] != request.headers.get('X-Gitlab-Token'):
+                return Response('invalid token', status=403, mimetype='text/plain')
+        else:
+            return Reponse('no even type', status=400, mimetype='text/plain')
+
     if service_name not in webhooks_config.get("services", []):
         raise ApiError('Unknown service', status_code=404)
 
@@ -99,7 +115,7 @@ def run(service_name):
         raise ApiError('Cannot import service', status_code=500)
 
     service = module.Service()
-    payload = json.loads(request.data)
+    payload = json.loads(payload_data)
     service.handle(payload)
 
     # return Response("OK", status=200, mimetype='application/json')
