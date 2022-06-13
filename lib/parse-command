@@ -182,15 +182,14 @@ def check_command(untrusted_command: bytes) -> None:
     else:
         raise BadCommandError("Unknown command")
 
-
-def check_one_signature_packet(untrusted_binary_sig: bytes, hash_str: bytes) -> None:
+def check_one_signature_packet(untrusted_binary_sig: bytes) -> bytes:
     """
     Check that a byte string is exactly one OpenPGP signature packet.
-    The contents of the packet are not checked.
+    Return the contents of the packet.
+
+    This check purely covers the OpenPGP message framing, and should
+    (almost) never need to be changed.
     """
-    sig_len = len(untrusted_binary_sig)
-    if sig_len < 64:
-        raise BadCommandError("signature too short to be valid")
     untrusted_first_byte = untrusted_binary_sig[0]
     if not (untrusted_first_byte & 0x80):
         raise BadCommandError("first bit zero")
@@ -222,15 +221,19 @@ def check_one_signature_packet(untrusted_binary_sig: bytes, hash_str: bytes) -> 
             raise BadCommandError("forbidden indefinite-length packet")
         for i in untrusted_binary_sig[1 : len_bytes + 1]:
             packet_length = packet_length << 8 | i
-    if packet_length != sig_len - len_bytes - 1:
+    if packet_length != len(untrusted_binary_sig) - len_bytes - 1:
         raise BadCommandError("bad signature length")
     if tag != 2:
         raise BadCommandError("packet is not a signature")
-    if untrusted_binary_sig[len_bytes + 1] != 4:
+    return untrusted_binary_sig[len_bytes + 1:]
+
+def check_binary_signature(untrusted_binary_sig: bytes, hash_str: bytes) -> None:
+    untrusted_binary_sig = check_one_signature_packet(untrusted_binary_sig)
+    version, ty, _pubkey_alg, hash_alg = untrusted_binary_sig[:4]
+    if version != 4:
         raise BadCommandError("only version 4 signatures allowed")
-    if untrusted_binary_sig[len_bytes + 2] != 1:
+    if ty != 1:
         raise BadCommandError("expected signature of type 1, got something else")
-    hash_alg = untrusted_binary_sig[len_bytes + 4]
     if hash_alg < 8 or hash_alg > 10:
         raise BadCommandError("unsupported hash algorithm")
     if hash_str != (b"SHA256", b"SHA384", b"SHA512")[hash_alg - 8]:
@@ -291,19 +294,19 @@ def canonicalize_sig(untrusted_armored_sig: bytes, hash_str: bytes) -> bytes:
         raise BadCommandError("base64-encoded data has length not a multiple of 4")
     if untrusted_base64_body[-1] == ord("="):
         if untrusted_base64_body[-2] == ord("="):
-            check_base64(untrusted_base64_body[:-2])
             if untrusted_base64_body[-3] not in b'AQgw':
                 raise BadCommandError("bad base64 line: bad byte before padding")
-        elif untrusted_base64_body[-2] not in b'AEIMQUYcgkosw048':
-            raise BadCommandError("bad base64 line: bad byte before padding")
+            check_base64(untrusted_base64_body[:-2])
         else:
+            if untrusted_base64_body[-2] not in b'AEIMQUYcgkosw048':
+                raise BadCommandError("bad base64 line: bad byte before padding")
             check_base64(untrusted_base64_body[:-1])
     else:
         check_base64(untrusted_base64_body)
     untrusted_sig_to_write = a2b_base64(untrusted_base64_body)
 
     # Check that the signature is a single packet of the correct type
-    check_one_signature_packet(untrusted_sig_to_write, hash_str)
+    check_binary_signature(untrusted_sig_to_write, hash_str)
 
     # And reconstruct the armored signature.
     return reconstruct_armored_sig(untrusted_crc24, untrusted_sig_to_write)
