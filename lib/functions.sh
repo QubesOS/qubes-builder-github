@@ -61,38 +61,16 @@ read_stdin_command_and_verify_signature() {
         exit 1
     fi
 
-    if ! LC_ALL=en_US.UTF-8 gpg2 --keyring "$local_keyring_path" \
-	    --exit-on-status-write-error \
-	    --no-autostart \
-	    --no-tty \
-	    --disable-dirmngr \
-	    --verify \
-	    --batch \
-	    --with-colons \
-	    --no-default-keyring \
-            --status-fd=3 \
+    if ! fpr=$(sqv --keyring "$local_keyring_path" -- \
             "$tmpdir/untrusted_command.sig" \
-            "$tmpdir/untrusted_command" \
-            3> "$tmpdir/gpg-status"; then
+	    "$tmpdir/untrusted_command"); then
         echo "Invalid signature" >&2
         exit 1
     fi
-    # Notes on the regular expression:
-    # - [45] means that only version 4 and 5 signatures are allowed
-    # - (8|9|10) means that only SHA256, SHA384, and SHA512 are allowed
-    # - 01 means that only type 1 signatures are allowed
     # fpr is used by eval
     # shellcheck disable=SC2034
-    fpr=$(grep -Po \
-	    '^\[GNUPG:] VALIDSIG [0-9A-F]{40} 202[2-9](-[0-9]{2}){2} [1-9][0-9]+ [0-9]+ [45] 0 [0-9]+ (8|9|10) 01 \K([0-9A-F]{40})$' \
-            "$tmpdir/gpg-status") || {
+    if ! [[ "$fpr" =~ ^[A-F0-9]{40}$ ]]; then
         echo 'Cannot obtain signing key fingerprint!' >&2
-        exit 1
-    }
-    if good=$(grep -c '^\[GNUPG:] GOODSIG ' "$tmpdir/gpg-status") && [ "$good" -eq 1 ]; then
-        :
-    else
-        echo 'Signature is not good!' >&2
         exit 1
     fi
     # extract signer fingerprint
