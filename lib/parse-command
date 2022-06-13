@@ -292,26 +292,9 @@ def canonicalize_sig(untrusted_armored_sig: bytes, hash_str: bytes) -> bytes:
     if untrusted_base64_body[-1] == ord("="):
         if untrusted_base64_body[-2] == ord("="):
             check_base64(untrusted_base64_body[:-2])
-            if untrusted_base64_body[-3] not in (65, 81, 103, 119):
+            if untrusted_base64_body[-3] not in b'AQgw':
                 raise BadCommandError("bad base64 line: bad byte before padding")
-        elif untrusted_base64_body[-2] not in {
-            48,
-            52,
-            56,
-            65,
-            69,
-            73,
-            77,
-            81,
-            85,
-            89,
-            99,
-            103,
-            107,
-            111,
-            115,
-            119,
-        }:
+        elif untrusted_base64_body[-2] not in b'AEIMQUYcgkosw048':
             raise BadCommandError("bad base64 line: bad byte before padding")
         else:
             check_base64(untrusted_base64_body[:-1])
