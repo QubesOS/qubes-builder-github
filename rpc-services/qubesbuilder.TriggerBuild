@@ -58,20 +58,35 @@ if ! [ -r "$config_file" ]; then
     exit 1
 fi
 
+# Update qubes-builder-github: copy the updater script elsewhere to prevent
+# any modification while pulling new version
+flock -x "$scripts_dir/builder.lock" bash -c \
+    "trap 'rm /tmp/update-qubes-builder' EXIT \
+        && cp $scripts_dir/update-qubes-builder /tmp/update-qubes-builder \
+        && /tmp/update-qubes-builder $scripts_dir"
+
 IFS="="
-while read -r release_name builder_dir; do
+while read -r release_name builder_dir builder_conf; do
     component=
     if ! [ -d "$builder_dir" ]; then
+        echo "Cannot find builder directory. Skipping."
         continue;
     fi
+
+    if ! [ -e "$builder_conf" ]; then
+        echo "Cannot find builder configuration file. Skipping."
+        continue;
+    fi
+
+    # Update Qubes Builder
+    flock -x "$builder_dir/builder.lock" "$scripts_dir"/update-qubes-builder "$builder_dir"
 
     # we already verified if $untrusted_component_name do not contains '/' or
     # '.', now lets check if that component really exists in this builder instance
     IFS=$' \t\n'
-    cd "$builder_dir"
-    for component in $(./qb config get-var components); do
+    for component in $("$builder_dir"/qb --builder-conf "$builder_conf" config get-var components); do
         # check also for mismatching component and git repository name
-        component_url=$(./qb -c "$component" config get-components --attribute url)
+        component_url=$("$builder_dir"/qb --builder-conf "$builder_conf" -c "$component" config get-components --attribute url)
         component_repo=$(basename "$component_url" .git)
         # strip 'qubes-' prefix, if any
         component_repo=${component_repo#qubes-}
@@ -81,9 +96,10 @@ while read -r release_name builder_dir; do
             # builders) and with a lock for this builder (don't allow multiple components
             # being built at the same time in the same builder).
             # This is implicit queueing mechanism.
-            flock -x "$builder_dir/builder.lock" \
+            PYTHONPATH="$builder_dir:${PYTHONPATH:-}"
+            flock -s "$builder_dir/builder.lock" \
                 "$scripts_dir"/auto-build \
-                component "$builder_dir" "$component" \
+                component "$builder_dir" "$builder_conf" "$component" \
                 >>"${log_basename}-${component}-${release_name}.log" 2>&1 </dev/null &
         fi
     done

@@ -63,9 +63,9 @@ class AutoBuildTimeout(Exception):
 
 
 class BaseAutoBuild:
-    def __init__(self, builder_dir, state_dir):
+    def __init__(self, builder_dir, state_dir, builder_conf=None):
         self.builder_dir = Path(builder_dir).resolve()
-        self.builder_conf = self.builder_dir / "builder.yml"
+        self.builder_conf = builder_conf or self.builder_dir / "builder.yml"
         self.state_dir = Path(state_dir).resolve()
         self.config = Config(self.builder_conf)
         self.timeout = 21600
@@ -132,20 +132,21 @@ class BaseAutoBuild:
             return log_file
 
     def run(self):
-        try:
-            subprocess.run(
-                [str(PROJECT_PATH / "update-qubes-builder"), str(self.builder_dir)],
-                check=True,
-            )
-        except subprocess.CalledProcessError as exc:
-            raise AutoBuildError(
-                f"Failed to update Qubes Builder at {self.builder_dir}."
-            ) from exc
+        pass
+        # try:
+        #     subprocess.run(
+        #         [str(PROJECT_PATH / "update-qubes-builder"), str(self.builder_dir)],
+        #         check=True,
+        #     )
+        # except subprocess.CalledProcessError as exc:
+        #     raise AutoBuildError(
+        #         f"Failed to update Qubes Builder at {self.builder_dir}."
+        #     ) from exc
 
 
 class AutoBuild(BaseAutoBuild):
-    def __init__(self, builder_dir, component_name, state_dir):
-        super().__init__(builder_dir, state_dir)
+    def __init__(self, builder_dir, builder_conf, component_name, state_dir):
+        super().__init__(builder_dir=builder_dir, builder_conf=builder_conf, state_dir=state_dir)
 
         self.components = self.config.get_components([component_name])
         self.distributions = self.config.get_distributions()
@@ -333,8 +334,8 @@ class AutoBuild(BaseAutoBuild):
 
 
 class AutoBuildTemplate(BaseAutoBuild):
-    def __init__(self, builder_dir, template_name, template_timestamp, state_dir):
-        super().__init__(builder_dir, state_dir)
+    def __init__(self, builder_dir, builder_conf, template_name, template_timestamp, state_dir):
+        super().__init__(builder_dir=builder_dir, builder_conf=builder_conf, state_dir=state_dir)
 
         self.templates = self.config.get_templates([template_name])
         self.template_timestamp = template_timestamp
@@ -513,6 +514,7 @@ def main():
     component_parser = subparsers.add_parser("component")
     component_parser.set_defaults(command="component")
     component_parser.add_argument("builder_dir")
+    component_parser.add_argument("builder_conf")
     component_parser.add_argument("component_name")
     component_parser.add_argument(
         "--state-dir", default=Path.home() / "github-notify-state"
@@ -522,6 +524,7 @@ def main():
     template_parser = subparsers.add_parser("template")
     template_parser.set_defaults(command="template")
     template_parser.add_argument("builder_dir")
+    template_parser.add_argument("builder_conf")
     template_parser.add_argument("template_name")
     template_parser.add_argument("template_timestamp")
     template_parser.add_argument(
@@ -533,12 +536,14 @@ def main():
     if args.command == "component":
         cli = AutoBuild(
             builder_dir=args.builder_dir,
+            builder_conf=args.builder_conf,
             component_name=args.component_name,
             state_dir=args.state_dir,
         )
     else:
         cli = AutoBuildTemplate(
             builder_dir=args.builder_dir,
+            builder_conf=args.builder_conf,
             template_name=args.template_name,
             template_timestamp=args.template_timestamp,
             state_dir=args.state_dir,

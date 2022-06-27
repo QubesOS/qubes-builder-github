@@ -81,7 +81,7 @@ build_template_for_release() {
         return
     fi
 
-    "$scripts_dir"/auto-build template "$local_builder_dir" "$dist" "$timestamp"
+    "$scripts_dir"/auto-build template "$local_builder_dir" "$local_builder_dir"/builder.yml "$dist" "$timestamp"
 }
 
 execute_in_each_builder build_template_for_release
