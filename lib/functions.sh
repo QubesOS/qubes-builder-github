@@ -148,31 +148,3 @@ execute_in_each_builder() {
 
     done < "$config_file"
 }
-
-# get list of allowed distributions for given key
-# Arguments:
-# - builder dir
-# - key fingerprint
-get_allowed_distributionss() {
-    local_builder_dir="$1"
-    local_signer_fpr="$2"
-    read -r -a local_dists<<<"$(\
-        "$local_builder_dir"/qb --builder-conf "$local_builder_dir"/builder.yml config get-var --json github | \
-        jq -r --arg local_signer_fpr "$local_signer_fpr" '.maintainers."'"$local_signer_fpr"'".distributions | select( . != null ) | join(" ")' \
-    )"
-    echo "${local_dists[@]}"
-}
-
-# get list of allowed templates for given key
-# Arguments:
-# - builder dir
-# - key fingerprint
-get_allowed_templates() {
-    local_builder_dir="$1"
-    local_signer_fpr="$2"
-    read -r -a local_dists<<<"$(\
-        "$local_builder_dir"/qb --builder-conf "$local_builder_dir"/builder.yml config get-var --json github | \
-        jq -r --arg local_signer_fpr "$local_signer_fpr" '.maintainers."'"$local_signer_fpr"'".templates | select( . != null ) | join(" ")' \
-    )"
-    echo "${local_dists[@]}"
-}

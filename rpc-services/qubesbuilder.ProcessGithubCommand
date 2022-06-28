@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash --
 
 # Service called from network-exposed VM (probably sys-net) into actual build
 # VM to (potentially) trigger moving packages from current-testing to current
@@ -16,7 +16,15 @@
 #
 # See README.md for detailed description.
 
-set -e
+set -eux
+
+# Don't read anything from standard input
+exec </dev/null
+
+# also, don't return anything; log it locally, just in case
+mkdir -p "$HOME/builder-github-logs"
+log_basename="$HOME/builder-github-logs/$(date +%s)-$$"
+exec >>"${log_basename}.log" 2>&1
 
 keyring_path="$HOME/.config/qubes-builder-github/trusted-keys-for-commands.gpg"
 
@@ -32,11 +40,17 @@ read_stdin_command_and_verify_signature "$scripts_dir" "$keyring_path" "${tmpdir
 read -r action args < "$tmpdir/command"
 
 case "$action" in
-#    Upload)
-#        "$scripts_dir/github-command-upload" "$tmpdir/command" "$command_signer"
+#    Build-component)
+#        "$scripts_dir/github-command.py" --log-basename "${log_basename}" log_basename --signer-fpr "$command_signer" build-component "$tmpdir/command"
 #        ;;
+    Upload-component)
+        "$scripts_dir/github-command.py" --log-basename "${log_basename}" --signer-fpr "$command_signer" upload-component "$tmpdir/command"
+        ;;
     Build-template)
-        "$scripts_dir/github-command-build-template" "$tmpdir/command" "$command_signer"
+        "$scripts_dir/github-command.py" --log-basename "${log_basename}" --signer-fpr "$command_signer" build-template "$tmpdir/command"
+        ;;
+    Upload-template)
+        "$scripts_dir/github-command.py" --log-basename "${log_basename}" --signer-fpr "$command_signer" upload-template "$tmpdir/command"
         ;;
     *)
         echo "Unknown command $action" >&2

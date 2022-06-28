@@ -1,4 +1,22 @@
 #!/usr/bin/python3
+# The Qubes OS Project, http://www.qubes-os.org
+#
+# Copyright (C) 2022 Frédéric Pierret (fepitre) <frederic@invisiblethingslab.com>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program. If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
 
 # This is script to automate build process in reaction to pushing updates
 # sources to git. The workflow is:
@@ -22,6 +40,8 @@ from pathlib import Path
 from qubesbuilder.cli.cli_package import _component_stage
 from qubesbuilder.cli.cli_template import _template_stage
 from qubesbuilder.cli.cli_repository import (
+    _publish,
+    _upload,
     _check_release_status_for_component,
     _check_release_status_for_template,
 )
@@ -34,7 +54,7 @@ from qubesbuilder.plugins.template import TEMPLATE_VERSION
 PROJECT_PATH = Path(__file__).resolve().parent
 
 log = init_logging(level="DEBUG")
-log.name = "auto-build"
+log.name = "github-action"
 
 
 def raise_timeout(signum, frame):
@@ -53,26 +73,38 @@ def timeout(time):
         signal.signal(signal.SIGALRM, signal.SIG_IGN)
 
 
-class AutoBuildError(Exception):
-    def __init__(self, log_file=None):
+class AutoActionError(Exception):
+    def __init__(self, log_file=None, args=None):
         self.log_file = log_file
+        self.args = args
 
 
-class AutoBuildTimeout(Exception):
+class AutoActionTimeout(Exception):
     pass
 
 
-class BaseAutoBuild:
-    def __init__(self, builder_dir, state_dir, builder_conf=None):
+class BaseAutoAction:
+    def __init__(
+        self,
+        builder_dir,
+        state_dir,
+        builder_conf=None,
+        commit_sha=None,
+        repository_publish=None,
+    ):
         self.builder_dir = Path(builder_dir).resolve()
         self.builder_conf = builder_conf or self.builder_dir / "builder.yml"
         self.state_dir = Path(state_dir).resolve()
         self.config = Config(self.builder_conf)
         self.timeout = 21600
         self.qubes_release = self.config.get("qubes-release")
+        self.commit_sha = commit_sha
+        self.repository_publish = repository_publish
 
         if not self.builder_dir.exists():
-            raise AutoBuildError(f"No such directory for builder '{self.builder_dir}'.")
+            raise AutoActionError(
+                f"No such directory for builder '{self.builder_dir}'."
+            )
 
         self.state_dir.mkdir(exist_ok=True, parents=True)
 
@@ -121,7 +153,7 @@ class BaseAutoBuild:
                 p.wait()
                 log_file = list(p.stdout)
                 log_file = log_file[0].rstrip("\n")
-                raise AutoBuildError(log_file=log_file) from e
+                raise AutoActionError(log_file=log_file, args=e.args) from e
             else:
                 p.stdin.close()
                 p.wait()
@@ -133,32 +165,37 @@ class BaseAutoBuild:
 
     def run(self):
         pass
-        # try:
-        #     subprocess.run(
-        #         [str(PROJECT_PATH / "update-qubes-builder"), str(self.builder_dir)],
-        #         check=True,
-        #     )
-        # except subprocess.CalledProcessError as exc:
-        #     raise AutoBuildError(
-        #         f"Failed to update Qubes Builder at {self.builder_dir}."
-        #     ) from exc
 
 
-class AutoBuild(BaseAutoBuild):
-    def __init__(self, builder_dir, builder_conf, component_name, state_dir):
-        super().__init__(builder_dir=builder_dir, builder_conf=builder_conf, state_dir=state_dir)
+class AutoAction(BaseAutoAction):
+    def __init__(
+        self,
+        builder_dir,
+        builder_conf,
+        component_name,
+        state_dir,
+        commit_sha,
+        repository_publish,
+    ):
+        super().__init__(
+            builder_dir=builder_dir,
+            builder_conf=builder_conf,
+            state_dir=state_dir,
+            commit_sha=commit_sha,
+            repository_publish=repository_publish,
+        )
 
         self.components = self.config.get_components([component_name])
         self.distributions = self.config.get_distributions()
 
         if not self.components:
-            raise AutoBuildError(f"No such component '{component_name}'.")
+            raise AutoActionError(f"No such component '{component_name}'.")
 
-        self.repository_publish = self.config.get("repository-publish", {}).get(
-            "components", None
-        )
+        self.repository_publish = repository_publish or self.config.get(
+            "repository-publish", {}
+        ).get("components", None)
         if not self.repository_publish:
-            raise AutoBuildError(f"No repository defined for component publication.")
+            raise AutoActionError(f"No repository defined for component publication.")
 
         self.timeout = self.components[0].timeout
 
@@ -172,6 +209,21 @@ class AutoBuild(BaseAutoBuild):
                 components=self.components,
                 distributions=self.distributions,
             )
+
+    def publish_and_upload(self, repository_publish: str):
+        _publish(
+            config=self.config,
+            repository_publish=repository_publish,
+            components=self.components,
+            distributions=self.distributions,
+            templates=[],
+        )
+        _upload(
+            config=self.config,
+            repository_publish=repository_publish,
+            distributions=self.distributions,
+            templates=[],
+        )
 
     def notify_build_status_on_timeout(self):
         for dist in self.distributions:
@@ -266,10 +318,7 @@ class AutoBuild(BaseAutoBuild):
         log.debug(f">> distributions:")
         log.debug(f">>   {self.distributions}")
 
-    def run(self):
-        # Update Qubes Builder
-        super().run()
-
+    def build(self):
         self.make_with_log(
             _component_stage, self.config, self.components, self.distributions, "fetch"
         )
@@ -309,13 +358,17 @@ class AutoBuild(BaseAutoBuild):
                     self.notify_upload_status(dist, build_log_file)
 
                     self.built_for_dist.append(dist)
-                except AutoBuildError as autobuild_exc:
+                except AutoActionError as autobuild_exc:
+                    log.error(str(autobuild_exc.args))
                     self.notify_build_status(
-                        dist, "failed", log_file=autobuild_exc.log_file
+                        dist,
+                        "failed",
+                        log_file=autobuild_exc.log_file,
+                        additional_info=autobuild_exc.args,
                     )
                     pass
                 except TimeoutError as timeout_exc:
-                    raise AutoBuildTimeout(
+                    raise AutoActionTimeout(
                         "Timeout reached for build!"
                     ) from timeout_exc
                 except Exception as exc:
@@ -332,22 +385,48 @@ class AutoBuild(BaseAutoBuild):
                 "Nothing was built, something gone wrong or version tag was not found."
             )
 
+    def upload(self):
+        actual_commit_sha = self.components[0].get_source_commit_hash()
+        if self.commit_sha != actual_commit_sha:
+            raise AutoActionError(
+                f"Source have changed in the meantime (current: {actual_commit_sha})"
+            )
+        self.make_with_log(
+            self.publish_and_upload,
+            self.repository_publish,
+        )
 
-class AutoBuildTemplate(BaseAutoBuild):
-    def __init__(self, builder_dir, builder_conf, template_name, template_timestamp, state_dir):
-        super().__init__(builder_dir=builder_dir, builder_conf=builder_conf, state_dir=state_dir)
+
+class AutoActionTemplate(BaseAutoAction):
+    def __init__(
+        self,
+        builder_dir,
+        builder_conf,
+        template_name,
+        template_timestamp,
+        state_dir,
+        commit_sha,
+        repository_publish,
+    ):
+        super().__init__(
+            builder_dir=builder_dir,
+            builder_conf=builder_conf,
+            state_dir=state_dir,
+            commit_sha=commit_sha,
+            repository_publish=repository_publish,
+        )
 
         self.templates = self.config.get_templates([template_name])
         self.template_timestamp = template_timestamp
 
         if not self.templates:
-            raise AutoBuildError(f"No such template '{template_name}'.")
+            raise AutoActionError(f"No such template '{template_name}'.")
 
-        self.repository_publish = self.config.get("repository-publish", {}).get(
-            "templates", None
-        )
+        self.repository_publish = repository_publish or self.config.get(
+            "repository-publish", {}
+        ).get("templates", None)
         if not self.repository_publish:
-            raise AutoBuildError(f"No repository defined for template publication.")
+            raise AutoActionError(f"No repository defined for template publication.")
 
         self.timeout = self.templates[0].timeout
 
@@ -359,6 +438,21 @@ class AutoBuildTemplate(BaseAutoBuild):
                 templates=self.templates,
                 template_timestamp=self.template_timestamp,
             )
+
+    def publish_and_upload(self, repository_publish: str):
+        _publish(
+            config=self.config,
+            repository_publish=repository_publish,
+            templates=self.templates,
+            components=[],
+            distributions=[],
+        )
+        _upload(
+            config=self.config,
+            repository_publish=repository_publish,
+            templates=self.templates,
+            distributions=[],
+        )
 
     def notify_build_status_on_timeout(self):
         self.notify_build_status("failed", additional_info="Timeout")
@@ -439,10 +533,7 @@ class AutoBuildTemplate(BaseAutoBuild):
             msg = f"{template}: Failed to notify GitHub: {str(e)}"
             log.error(msg)
 
-    def run(self):
-        # Update Qubes Builder
-        super().run()
-
+    def build(self):
         timestamp_file = (
             self.config.get_artifacts_dir()
             / "templates"
@@ -457,8 +548,8 @@ class AutoBuildTemplate(BaseAutoBuild):
                     self.template_timestamp, "%Y%m%d%H%M"
                 )
             except (OSError, ValueError) as exc:
-                raise AutoBuildError(
-                    f"Failed to read timestamp file: {str(exc)}"
+                raise AutoActionError(
+                    f"Failed to read or parse timestamp: {str(exc)}"
                 ) from exc
             if template_timestamp < timestamp_existing:
                 log.info(
@@ -491,11 +582,11 @@ class AutoBuildTemplate(BaseAutoBuild):
 
                 self.notify_upload_status(build_log_file)
 
-            except AutoBuildError as autobuild_exc:
+            except AutoActionError as autobuild_exc:
                 self.notify_build_status("failed", log_file=autobuild_exc.log_file)
                 pass
             except TimeoutError as timeout_exc:
-                raise AutoBuildTimeout("Timeout reached for build!") from timeout_exc
+                raise AutoActionTimeout("Timeout reached for build!") from timeout_exc
             except Exception as exc:
                 self.notify_build_status(
                     "failed",
@@ -504,56 +595,204 @@ class AutoBuildTemplate(BaseAutoBuild):
                 log.error(str(exc))
                 pass
 
+    def upload(self):
+        timestamp_file = (
+            self.config.get_artifacts_dir()
+            / "templates"
+            / f"build_timestamp_{self.templates[0].name}"
+        )
+        if not timestamp_file.exists():
+            raise AutoActionError("Cannot upload template, no build timestamp found.")
+        try:
+            timestamp_existing = datetime.datetime.strptime(
+                timestamp_file.read_text().rstrip("\n"), "%Y%m%d%H%M"
+            ).strftime("%Y%m%d%H%M")
+        except (OSError, ValueError) as exc:
+            raise AutoActionError(
+                f"Failed to read or parse timestamp: {str(exc)}"
+            ) from exc
+        if self.commit_sha != f"{TEMPLATE_VERSION}-{timestamp_existing}":
+            raise AutoActionError(
+                f"Different template was built in the meantime (current: {TEMPLATE_VERSION}-{timestamp_existing})"
+            )
+        try:
+            self.make_with_log(
+                self.publish_and_upload,
+                self.repository_publish,
+            )
+        except AutoActionError as autobuild_exc:
+            self.notify_build_status("failed", log_file=autobuild_exc.log_file)
+            pass
+        except TimeoutError as timeout_exc:
+            raise AutoActionTimeout("Timeout reached for upload!") from timeout_exc
+        except Exception as exc:
+            self.notify_build_status(
+                "failed",
+                additional_info=f"Internal error: '{str(exc.__class__.__name__)}'",
+            )
+            log.error(str(exc))
+            pass
+
 
 def main():
     parser = argparse.ArgumentParser()
+
+    signer = parser.add_mutually_exclusive_group()
+    signer.add_argument(
+        "--no-signer-github-command-check",
+        action="store_true",
+        default=False,
+        help="Don't check signer fingerprint.",
+    )
+    signer.add_argument(
+        "--signer-fpr",
+        help="Signer GitHub command fingerprint.",
+    )
+    parser.add_argument("--state-dir", default=Path.home() / "github-notify-state")
+
     subparsers = parser.add_subparsers(dest="command")
     subparsers.required = True
 
-    # component parser
-    component_parser = subparsers.add_parser("component")
-    component_parser.set_defaults(command="component")
-    component_parser.add_argument("builder_dir")
-    component_parser.add_argument("builder_conf")
-    component_parser.add_argument("component_name")
-    component_parser.add_argument(
-        "--state-dir", default=Path.home() / "github-notify-state"
-    )
+    # build component parser
+    build_component_parser = subparsers.add_parser("build-component")
+    build_component_parser.set_defaults(command="build-component")
+    build_component_parser.add_argument("builder_dir")
+    build_component_parser.add_argument("builder_conf")
+    build_component_parser.add_argument("component_name")
 
-    # template parser
-    template_parser = subparsers.add_parser("template")
-    template_parser.set_defaults(command="template")
+    # upload component parser
+    upload_component_parser = subparsers.add_parser("upload-component")
+    upload_component_parser.set_defaults(command="upload-component")
+    upload_component_parser.add_argument("builder_dir")
+    upload_component_parser.add_argument("builder_conf")
+    upload_component_parser.add_argument("component_name")
+    upload_component_parser.add_argument("commit_sha")
+    upload_component_parser.add_argument("repository_publish")
+    upload_component_parser.add_argument("--distribution", nargs="+", default=[])
+
+    # build template parser
+    build_template_parser = subparsers.add_parser("build-template")
+    build_template_parser.set_defaults(command="build-template")
+    build_template_parser.add_argument("builder_dir")
+    build_template_parser.add_argument("builder_conf")
+    build_template_parser.add_argument("template_name")
+    build_template_parser.add_argument("template_timestamp")
+
+    # upload template parser
+    template_parser = subparsers.add_parser("upload-template")
+    template_parser.set_defaults(command="upload-template")
     template_parser.add_argument("builder_dir")
     template_parser.add_argument("builder_conf")
     template_parser.add_argument("template_name")
     template_parser.add_argument("template_timestamp")
-    template_parser.add_argument(
-        "--state-dir", default=Path.home() / "github-notify-state"
-    )
+    template_parser.add_argument("template_sha")
+    template_parser.add_argument("repository_publish")
 
     args = parser.parse_args()
 
-    if args.command == "component":
-        cli = AutoBuild(
+    if args.command == "upload-component":
+        commit_sha = args.commit_sha
+    elif args.command == "upload-template":
+        commit_sha = args.template_sha
+    else:
+        commit_sha = None
+
+    if args.command in ("upload-component", "upload-template"):
+        repository_publish = args.repository_publish
+    else:
+        repository_publish = None
+
+    if args.command in ("build-component", "upload-component"):
+        cli = AutoAction(
             builder_dir=args.builder_dir,
             builder_conf=args.builder_conf,
             component_name=args.component_name,
             state_dir=args.state_dir,
+            commit_sha=commit_sha,
+            repository_publish=repository_publish,
         )
-    else:
-        cli = AutoBuildTemplate(
+        supported_distributions = [d.name for d in cli.config.get_distributions()]
+        supported_components = [c.name for c in cli.config.get_components()]
+
+        # check if requested component name exists
+        if args.component_name not in supported_components:
+            return
+
+        # maintainers checks
+        if not args.no_signer_github_command_check:
+            # maintainers components filtering
+            allowed_components = (
+                cli.config.get("github", {})
+                .get("maintainers", {})
+                .get(args.signed_fpr, {})
+                .get("components", [])
+            )
+            if allowed_components == "_all_":
+                allowed_components = supported_components
+            if args.component_name not in allowed_components:
+                return
+
+            # maintainers distributions filtering (only supported for upload)
+            if args.command == "upload-component":
+                allowed_distributions = (
+                    cli.config.get("github", {})
+                    .get("maintainers", {})
+                    .get(args.signed_fpr, {})
+                    .get("distributions", [])
+                )
+                if allowed_distributions == "_all_":
+                    allowed_distributions = supported_distributions
+                if args.distribution == ["all"]:
+                    args.distribution = supported_distributions
+                # we may have multiple distribution provided
+                filtered_distributions = set(args.distribution).intersection(
+                    set(allowed_distributions)
+                )
+                if not filtered_distributions:
+                    return
+                cli.distributions = cli.config.get_distributions(filtered_distributions)
+    elif args.command in ("build-template", "upload-template"):
+        cli = AutoActionTemplate(
             builder_dir=args.builder_dir,
             builder_conf=args.builder_conf,
             template_name=args.template_name,
             template_timestamp=args.template_timestamp,
             state_dir=args.state_dir,
+            commit_sha=commit_sha,
+            repository_publish=repository_publish,
         )
+        supported_templates = [t.name for t in cli.config.get_templates()]
+        # check if requested template name exists
+        if args.template_name not in supported_templates:
+            return
+        # maintainers checks
+        if not args.no_signer_github_command_check:
+            allowed_templates = (
+                cli.config.get("github", {})
+                .get("maintainers", {})
+                .get(args.signed_fpr, {})
+                .get("templates", [])
+            )
+            if allowed_templates == "_all_":
+                allowed_templates = supported_templates
+            if args.template_name not in allowed_templates:
+                return
+    else:
+        return
+
     with timeout(cli.timeout):
         try:
-            cli.run()
-        except AutoBuildTimeout as autobuild_exc:
+            if args.command in ("build-component", "build-template"):
+                cli.build()
+            elif args.command in ("upload-component", "upload-template"):
+                cli.upload()
+            else:
+                return
+        except PluginError as plugin_exc:
             cli.notify_build_status_on_timeout()
-            raise AutoBuildTimeout(str(autobuild_exc))
+        except AutoActionTimeout as autobuild_exc:
+            cli.notify_build_status_on_timeout()
+            raise AutoActionTimeout(str(autobuild_exc))
 
 
 if __name__ == "__main__":

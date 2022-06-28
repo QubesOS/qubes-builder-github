@@ -1,6 +1,4 @@
 #!/bin/bash --
-set -eu
-
 # Service called from network-exposed VM (probably sys-net) into actual build
 # VM to (potentially) trigger a build when a properly signed version tag is
 # being pushed.
@@ -9,7 +7,7 @@ set -eu
 # repository (branch configured in builder.conf) contains new version tag at
 # the top.
 
-set -x
+set -eux
 
 # Don't read anything from standard input
 exec </dev/null
@@ -47,61 +45,17 @@ case "${untrusted_component_name}" in
         exit 1
         ;;
 esac
-# additional validation will be below - compare against "whitelist" defined as
-# directories list in qubes-src.
 
-# load list of qubes-builder instances
-config_file="$HOME/.config/qubes-builder-github/builders.list"
+set -e
 
-if ! [ -r "$config_file" ]; then
-    echo "Config file $config_file missing" >&2
-    exit 1
-fi
+keyring_path="$HOME/.config/qubes-builder-github/trusted-keys-for-commands.gpg"
 
-# Update qubes-builder-github: copy the updater script elsewhere to prevent
-# any modification while pulling new version
-flock -x "$scripts_dir/builder.lock" bash -c \
-    "trap 'rm /tmp/update-qubes-builder' EXIT \
-        && cp $scripts_dir/update-qubes-builder /tmp/update-qubes-builder \
-        && /tmp/update-qubes-builder $scripts_dir"
+scripts_dir="/usr/local/lib/qubes-builder-github"
 
-IFS="="
-while read -r release_name builder_dir builder_conf; do
-    component=
-    if ! [ -d "$builder_dir" ]; then
-        echo "Cannot find builder directory. Skipping."
-        continue;
-    fi
+# shellcheck source=lib/functions.sh
+. "$scripts_dir/functions.sh"
 
-    if ! [ -e "$builder_conf" ]; then
-        echo "Cannot find builder configuration file. Skipping."
-        continue;
-    fi
+command_signer=
+read_stdin_command_and_verify_signature "$scripts_dir" "$keyring_path" "${tmpdir:?}/command" command_signer
 
-    # Update Qubes Builder
-    flock -x "$builder_dir/builder.lock" "$scripts_dir"/update-qubes-builder "$builder_dir"
-
-    # we already verified if $untrusted_component_name do not contains '/' or
-    # '.', now lets check if that component really exists in this builder instance
-    IFS=$' \t\n'
-    for component in $("$builder_dir"/qb --builder-conf "$builder_conf" config get-var components); do
-        # check also for mismatching component and git repository name
-        component_url=$("$builder_dir"/qb --builder-conf "$builder_conf" -c "$component" config get-components --attribute url)
-        component_repo=$(basename "$component_url" .git)
-        # strip 'qubes-' prefix, if any
-        component_repo=${component_repo#qubes-}
-        if [ "$component" == "$untrusted_component_name" ] ||
-                [ "$component_repo" == "$untrusted_component_name" ]; then
-            # Start a build process in subprocess (allow parallel builds in different
-            # builders) and with a lock for this builder (don't allow multiple components
-            # being built at the same time in the same builder).
-            # This is implicit queueing mechanism.
-            PYTHONPATH="$builder_dir:${PYTHONPATH:-}"
-            flock -s "$builder_dir/builder.lock" \
-                "$scripts_dir"/auto-build \
-                component "$builder_dir" "$builder_conf" "$component" \
-                >>"${log_basename}-${component}-${release_name}.log" 2>&1 </dev/null &
-        fi
-    done
-    IFS="="
-done < "$config_file"
+"$scripts_dir/github-command.py" --no-signer-github-command-check "$tmpdir/command" "$command_signer"
