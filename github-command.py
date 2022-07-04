@@ -21,6 +21,7 @@
 import argparse
 import sys
 import subprocess
+import datetime
 from pathlib import Path
 
 from qubesbuilder.log import init_logging
@@ -112,6 +113,13 @@ def main():
     except IndexError as e:
         raise GithubCommandError(f"Wrong number of args provided: {str(e)}")
 
+    if template_timestamp:
+        timestamp = datetime.datetime.strptime(template_timestamp, "%Y%m%d%H%M")
+        timestamp_max = datetime.datetime.utcnow() + datetime.timedelta(minutes=5)
+        timestamp_min = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+        if timestamp < timestamp_min or timestamp_max < timestamp:
+            raise GithubCommandError("Timestamp outside of allowed range")
+
     # Update GitHub Builder
     cmd = [
         "flock",
@@ -146,22 +154,26 @@ def main():
             "-x",
             str(builder_dir / "builder.lock"),
             str(scripts_dir / "update-qubes-builder"),
-            builder_dir,
+            str(builder_dir),
         ]
         subprocess.Popen(cmd)
 
         # Prepare github-action
         github_action_cmd = [str(scripts_dir / "github-action.py")]
-        if args.signed_fpr:
+        if args.signer_fpr:
             github_action_cmd += ["--signer-fpr", args.signer_fpr]
         else:
             github_action_cmd += ["--no-signer-github-command-check"]
 
-        github_action_cmd += [builder_dir, builder_conf]
+        github_action_cmd += [str(args.command).lower(), str(builder_dir), builder_conf]
         if args.command == "Build-component":
             github_action_cmd += [component_name]
         elif args.command == "Upload-component":
-            github_action_cmd += [component_name, commit_sha, repository_publish]
+            github_action_cmd += [
+                component_name,
+                commit_sha,
+                repository_publish,
+            ]
             if distribution_name == "all":
                 github_action_cmd += ["--distribution", "all"]
             else:

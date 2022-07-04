@@ -1,0 +1,96 @@
+github:
+  state-dir: /home/user/github-notify-state
+  api-key: ""
+  build-report-repo: "fepitre/test-updates-status"
+  logs-repo: "fepitre/test-build-logs"
+  maintainers:
+    9FA64B92F95E706BF28E2CA6484010B5CDC576E2:
+      components: _all_
+      distributions:
+        - host-fc32
+        - vm-bullseye
+        - vm-fc36
+      templates:
+        - fedora-35-xfce
+        - debian-11
+    632F8C69E01B25C9E0C3ADF2F360C0D259FB650C:
+      components: _all_
+      distributions: _all_
+      templates: _all_
+
+git:
+  baseurl: https://github.com
+  prefix: QubesOS/qubes-
+
+backend-vmm: xen
+debug: true
+verbose: true
+qubes-release: r4.2
+build_timeout: 21600
+
+fetch-versions-only: true
+
+use-qubes-repo:
+  version: 4.1
+  testing: true
+
+distributions:
+  - host-fc32
+  - vm-bullseye
+  - vm-fc36
+
+template-root-with-partitions: true
+template-root-size: 15G
+
+templates:
+  - fedora-35-xfce:
+      dist: fc35
+  - debian-11:
+      dist: bullseye
+      options:
+        - standard
+        - firmware
+  - whonix-gateway-16:
+      dist: bullseye
+      flavor: whonix-gateway
+      options:
+        - minimal
+        - no-recommends
+  - whonix-workstation-16:
+      dist: bullseye
+      flavor: whonix-workstation
+      options:
+        - minimal
+        - no-recommends
+
+stages:
+  - fetch
+  - prep
+  - build
+  - post:
+      executor:
+        type: local
+  - verify
+  - sign:
+      executor:
+        type: local
+  - publish:
+      executor:
+        type: local
+  - upload:
+      executor:
+        type: local
+
+gpg-client: gpg
+
+sign-key:
+  rpm: 632F8C69E01B25C9E0C3ADF2F360C0D259FB650C
+  deb: 632F8C69E01B25C9E0C3ADF2F360C0D259FB650C
+
+repository-publish:
+  components: current-testing
+  templates: templates-itl-testing
+
+components:
+  - app-linux-split-gpg:
+      branch: v2.0.60

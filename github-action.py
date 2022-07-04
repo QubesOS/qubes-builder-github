@@ -711,7 +711,7 @@ def main():
             commit_sha=commit_sha,
             repository_publish=repository_publish,
         )
-        supported_distributions = [d.name for d in cli.config.get_distributions()]
+        supported_distributions = [d.distribution for d in cli.config.get_distributions()]
         supported_components = [c.name for c in cli.config.get_components()]
 
         # check if requested component name exists
@@ -724,12 +724,13 @@ def main():
             allowed_components = (
                 cli.config.get("github", {})
                 .get("maintainers", {})
-                .get(args.signed_fpr, {})
+                .get(args.signer_fpr, {})
                 .get("components", [])
             )
             if allowed_components == "_all_":
                 allowed_components = supported_components
             if args.component_name not in allowed_components:
+                log.info("Cannot find any allowed components.")
                 return
 
             # maintainers distributions filtering (only supported for upload)
@@ -737,7 +738,7 @@ def main():
                 allowed_distributions = (
                     cli.config.get("github", {})
                     .get("maintainers", {})
-                    .get(args.signed_fpr, {})
+                    .get(args.signer_fpr, {})
                     .get("distributions", [])
                 )
                 if allowed_distributions == "_all_":
@@ -749,6 +750,7 @@ def main():
                     set(allowed_distributions)
                 )
                 if not filtered_distributions:
+                    log.info("Cannot find any allowed distributions.")
                     return
                 cli.distributions = cli.config.get_distributions(filtered_distributions)
     elif args.command in ("build-template", "upload-template"):
@@ -770,7 +772,7 @@ def main():
             allowed_templates = (
                 cli.config.get("github", {})
                 .get("maintainers", {})
-                .get(args.signed_fpr, {})
+                .get(args.signer_fpr, {})
                 .get("templates", [])
             )
             if allowed_templates == "_all_":
@@ -788,8 +790,6 @@ def main():
                 cli.upload()
             else:
                 return
-        except PluginError as plugin_exc:
-            cli.notify_build_status_on_timeout()
         except AutoActionTimeout as autobuild_exc:
             cli.notify_build_status_on_timeout()
             raise AutoActionTimeout(str(autobuild_exc))
