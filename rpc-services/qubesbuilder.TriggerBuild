@@ -51,7 +51,7 @@ set -e
 scripts_dir="/usr/local/lib/qubes-builder-github"
 
 # shellcheck source=lib/functions.sh
-. "$scripts_dir/functions.sh"
+. "$scripts_dir/lib/functions.sh"
 
 printf 'Build-component %s' "$untrusted_component_name" > "$tmpdir/component"
 
