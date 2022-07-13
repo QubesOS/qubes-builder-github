@@ -91,7 +91,7 @@ def main():
     template_sha = None
     try:
         if args.command == "Build-component":
-            release_name, component_name = command[1:]
+            release_name, component_name = None, command[1]
         elif args.command == "Upload-component":
             (
                 release_name,
@@ -142,7 +142,7 @@ def main():
             continue
 
         # Check if requested release name is supported by this builder instance
-        if release_name != builder_release_name:
+        if release_name is not None and release_name != builder_release_name:
             log.info(f"Requested release does not match builder release.")
             continue
 
