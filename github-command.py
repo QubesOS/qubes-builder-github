@@ -22,12 +22,10 @@ import argparse
 import sys
 import subprocess
 import datetime
+import logging
 from pathlib import Path
 
-from qubesbuilder.log import init_logging
-
-log = init_logging(level="DEBUG")
-log.name = "github-command"
+log = logging.getLogger('github-command')
 
 
 class GithubCommandError(Exception):
