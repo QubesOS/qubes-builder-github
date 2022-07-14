@@ -329,7 +329,6 @@ class AutoAction(BaseAutoAction):
                 components=self.components,
                 distributions=[dist],
                 abort_no_version=True,
-                abort_on_empty=True,
                 # no_print_version=True,
             )
 
