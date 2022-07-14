@@ -201,13 +201,13 @@ class AutoAction(BaseAutoAction):
 
         self.built_for_dist = []
 
-    def run_stages(self, stages):
+    def run_stages(self, dist, stages):
         for stage in stages:
             _component_stage(
                 stage_name=stage,
                 config=self.config,
                 components=self.components,
-                distributions=self.distributions,
+                distributions=[dist],
             )
 
     def publish_and_upload(self, repository_publish: str):
@@ -346,11 +346,13 @@ class AutoAction(BaseAutoAction):
 
                     build_log_file = self.make_with_log(
                         self.run_stages,
+                        dist,
                         ["prep", "build"],
                     )
 
                     self.make_with_log(
                         self.run_stages,
+                        dist,
                         ["sign", "publish", "upload"],
                     )
 
