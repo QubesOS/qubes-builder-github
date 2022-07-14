@@ -42,7 +42,7 @@ def main():
         default=Path.home() / ".config/qubes-builder-github/builders.list",
     )
     parser.add_argument(
-        "--scripts-dir", default=Path("/usr/local/bin/qubes-builder-github")
+        "--scripts-dir", default=Path("/usr/local/lib/qubes-builder-github")
     )
     signer = parser.add_mutually_exclusive_group()
     signer.add_argument(
