@@ -20,6 +20,7 @@
 
 import argparse
 import sys
+import os
 import subprocess
 import datetime
 import logging
@@ -194,7 +195,11 @@ def main():
             "-c",
             " ".join(github_action_cmd),
         ]
-        subprocess.Popen(cmd)
+        subprocess.Popen(cmd,
+                         env={
+                            "PYTHONPATH": f"{builder_dir!s}:{os.environ.get('PYTHONPATH','')}",
+                            **os.environ
+                         })
 
 
 if __name__ == "__main__":
