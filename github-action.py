@@ -91,6 +91,7 @@ class BaseAutoAction:
         builder_conf=None,
         commit_sha=None,
         repository_publish=None,
+        local_log_file=None,
     ):
         self.builder_dir = Path(builder_dir).resolve()
         self.builder_conf = builder_conf or self.builder_dir / "builder.yml"
@@ -107,7 +108,7 @@ class BaseAutoAction:
             )
 
         self.state_dir.mkdir(exist_ok=True, parents=True)
-
+        self.local_log_file = local_log_file
         self.api_key = self.config.get("github", {}).get("api-key", None)
         self.build_report_repo = self.config.get("github", {}).get(
             "build-report-repo", "QubesOS/updates-status"
@@ -133,6 +134,26 @@ class BaseAutoAction:
         pass
 
     def make_with_log(self, func, *args):
+        if self.local_log_file:
+            return self.make_with_log_local(func, *args)
+        else:
+            return self.make_with_log_qrexec(func, *args)
+
+    def make_with_log_local(self, func, *args):
+        log_fh = logging.FileHandler(self.local_log_file)
+        log.addHandler(log_fh)
+        log.debug("> starting build with log")
+        self.display_head_info(args)
+        try:
+            func(*args)
+            log.debug("> done")
+        except PluginError as e:
+            raise AutoActionError(log_file=self.local_log_file, args=e.args) from e
+        finally:
+            log.removeHandler(log_fh)
+        return self.local_log_file
+
+    def make_with_log_qrexec(self, func, *args):
         with subprocess.Popen(
             ["qrexec-client-vm", "dom0", "qubesbuilder.BuildLog"],
             text=True,
@@ -176,6 +197,7 @@ class AutoAction(BaseAutoAction):
         state_dir,
         commit_sha,
         repository_publish,
+        local_log_file,
     ):
         super().__init__(
             builder_dir=builder_dir,
@@ -183,6 +205,7 @@ class AutoAction(BaseAutoAction):
             state_dir=state_dir,
             commit_sha=commit_sha,
             repository_publish=repository_publish,
+            local_log_file=local_log_file,
         )
 
         self.components = self.config.get_components([component_name])
@@ -408,6 +431,7 @@ class AutoActionTemplate(BaseAutoAction):
         state_dir,
         commit_sha,
         repository_publish,
+        local_log_file,
     ):
         super().__init__(
             builder_dir=builder_dir,
@@ -415,6 +439,7 @@ class AutoActionTemplate(BaseAutoAction):
             state_dir=state_dir,
             commit_sha=commit_sha,
             repository_publish=repository_publish,
+            local_log_file=local_log_file,
         )
 
         self.templates = self.config.get_templates([template_name])
@@ -650,7 +675,10 @@ def main():
         help="Signer GitHub command fingerprint.",
     )
     parser.add_argument("--state-dir", default=Path.home() / "github-notify-state")
-
+    parser.add_argument(
+        "--local-log-file",
+        help="Use local log file instead of qubesbuilder.BuildLog RPC.",
+    )
     subparsers = parser.add_subparsers(dest="command")
     subparsers.required = True
 
@@ -703,6 +731,11 @@ def main():
     else:
         repository_publish = None
 
+    if args.local_log_file:
+        local_log_file = Path(args.local_log_file).resolve()
+    else:
+        local_log_file = None
+
     if args.command in ("build-component", "upload-component"):
         cli = AutoAction(
             builder_dir=args.builder_dir,
@@ -711,8 +744,11 @@ def main():
             state_dir=args.state_dir,
             commit_sha=commit_sha,
             repository_publish=repository_publish,
+            local_log_file=local_log_file,
         )
-        supported_distributions = [d.distribution for d in cli.config.get_distributions()]
+        supported_distributions = [
+            d.distribution for d in cli.config.get_distributions()
+        ]
         supported_components = [c.name for c in cli.config.get_components()]
 
         # check if requested component name exists
@@ -763,6 +799,7 @@ def main():
             state_dir=args.state_dir,
             commit_sha=commit_sha,
             repository_publish=repository_publish,
+            local_log_file=local_log_file,
         )
         supported_templates = [t.name for t in cli.config.get_templates()]
         # check if requested template name exists
