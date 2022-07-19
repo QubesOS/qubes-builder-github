@@ -348,11 +348,7 @@ class AutoAction(BaseAutoAction):
 
         for dist in self.distributions:
             release_status = _check_release_status_for_component(
-                config=self.config,
-                components=self.components,
-                distributions=[dist],
-                abort_no_version=True,
-                # no_print_version=True,
+                config=self.config, components=self.components, distributions=[dist]
             )
 
             if (
@@ -360,6 +356,10 @@ class AutoAction(BaseAutoAction):
                 .get(dist.distribution, {})
                 .get("status", None)
                 == "not released"
+                and release_status.get(self.components[0].name, {})
+                .get(dist.distribution, {})
+                .get("tag", None)
+                != "no version tag"
             ):
                 try:
                     self.notify_build_status(
