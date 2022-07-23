@@ -60,6 +60,10 @@ def main():
     parser.add_argument(
         "--scripts-dir", default=Path("/usr/local/lib/qubes-builder-github")
     )
+    parser.add_argument(
+        "--local-log-file",
+        help="Use local log file instead of qubesbuilder.BuildLog RPC.",
+    )
     signer = parser.add_mutually_exclusive_group()
     signer.add_argument(
         "--no-signer-github-command-check",
@@ -179,6 +183,9 @@ def main():
             github_action_cmd += ["--signer-fpr", args.signer_fpr]
         else:
             github_action_cmd += ["--no-signer-github-command-check"]
+
+        if args.local_log_file:
+            github_action_cmd += ["--local-log-file", args.local_log_file]
 
         github_action_cmd += [str(args.command).lower(), str(builder_dir), builder_conf]
         if args.command == "Build-component":
