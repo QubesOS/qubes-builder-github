@@ -36,9 +36,9 @@ class GithubCommandError(Exception):
 def run_command(cmd, env=None, wait=False):
     if wait:
         try:
-            subprocess.run(cmd, env=env, check=True)
+            subprocess.run(cmd, env=env, check=True, capture_output=True)
         except subprocess.CalledProcessError as e:
-            raise GithubCommandError(f"Failed to run command: {str(e)}")
+            raise GithubCommandError(f"Failed to run command: {e.stderr}")
     else:
         subprocess.Popen(cmd, env=env)
 

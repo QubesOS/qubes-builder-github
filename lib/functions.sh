@@ -51,7 +51,7 @@ read_stdin_command_and_verify_signature() {
 
     # this will read from standard input of the service, the data should be
     # considered untrusted
-    "$python_script_path/parse-command" "$tmpdir/untrusted_command" "$tmpdir/untrusted_command.sig" || exit
+    "$python_script_path/lib/parse-command" "$tmpdir/untrusted_command" "$tmpdir/untrusted_command.sig" || exit
     # make sure we don't read anything else from stdin
     exec </dev/null
 
