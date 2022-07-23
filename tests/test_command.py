@@ -1,15 +1,10 @@
-import logging
-import os.path
-import re
-import shutil
+import datetime
 import subprocess
-import tempfile
-import yaml
-import dateutil.parser
-from dateutil.parser import parse as parsedate
-from datetime import datetime, timedelta
-
+import time
 from pathlib import Path
+
+import psutil
+import yaml
 
 PROJECT_PATH = Path(__file__).resolve().parents[1]
 DEFAULT_BUILDER_CONF = PROJECT_PATH / "tests/builder.yml"
@@ -17,84 +12,185 @@ DEFAULT_BUILDER_CONF = PROJECT_PATH / "tests/builder.yml"
 FEPITRE_FPR = "9FA64B92F95E706BF28E2CA6484010B5CDC576E2"
 TESTUSER_FPR = "632F8C69E01B25C9E0C3ADF2F360C0D259FB650C"
 
-# def qb_call(builder_conf, *args, **kwargs):
-#     subprocess.check_call(
-#         [PROJECT_PATH / "qb", "--verbose", "--builder-conf", builder_conf, *args],
-#         **kwargs,
-#     )
-#
-#
-# def qb_call_output(builder_conf, *args, **kwargs):
-#     return subprocess.check_output(
-#         [PROJECT_PATH / "qb", "--verbose", "--builder-conf", builder_conf, *args],
-#         **kwargs,
-#     )
+
+def get_all_processes():
+    all_processes = []
+    for i in range(50):
+        for proc in psutil.process_iter():
+            try:
+                if not proc.cmdline():
+                    continue
+                cmd = " ".join(proc.cmdline())
+                if cmd not in all_processes:
+                    all_processes.append(cmd)
+            except psutil.Error:
+                pass
+        time.sleep(0.1)
+    return all_processes
 
 
-def create_builders_list(builders, directory):
+def find_github_action(processes, cmdline):
+    found = False
+    for p in processes:
+        if p == cmdline:
+            found = True
+    return found
+
+
+def create_builders_list(directory):
+    builders = [("r4.2", f"{directory}/qubes-builderv2", f"{directory}/builder.yml")]
     with open(f"{directory}/builders.list", "w") as f:
         for line in builders:
             release, builder_dir, builder_conf = line
             f.write(f"{release}={builder_dir}={builder_conf}")
+    return builders
 
 
-def test_build_component():
-    env = os.environ.copy()
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # Better copy testing keyring into a separate directory to prevent locks inside
-        # local sources (when executed locally).
-        gnupghome = f"{tmpdir}/.gnupg"
-        shutil.copytree(PROJECT_PATH / "tests/gnupg", gnupghome)
-        os.chmod(gnupghome, 0o700)
+def set_dry_run(builder_conf):
+    with open(builder_conf, "r") as f:
+        conf = yaml.safe_load(f.read())
 
-        # Enforce keyring location
-        env["GNUPGHOME"] = gnupghome
+    conf["github"]["dry-run"] = True
+    with open(builder_conf, "w") as f:
+        f.write(yaml.dump(conf))
 
-        # We prevent rpm to find ~/.rpmmacros
-        env["HOME"] = tmpdir
 
-        # Copy builder.yml
-        shutil.copy2(DEFAULT_BUILDER_CONF, tmpdir)
+def test_command_00_build_component(workdir):
+    # Create builder list
+    builders_list = create_builders_list(workdir)
 
-        with open(f"{tmpdir}/builder.yml", "a") as f:
-            f.write(f"""
-artifacts-dir: {tmpdir}/artifacts
+    # Write command
+    with open(f"{workdir}/command", "w") as f:
+        f.write(f"Build-component app-linux-split-gpg")
 
-repository-upload-remote-host:
-  rpm: {tmpdir}/repo/rpm/r4.2
-  deb: {tmpdir}/repo/deb/r4.2
-""")
+    # Dry-run
+    set_dry_run(f"{workdir}/builder.yml")
 
-        # Create builder list
-        create_builders_list(
-            [("r4.2", f"{tmpdir}/qubes-builderv2", f"{tmpdir}/builder.yml")], tmpdir
+    cmd = [
+        str(PROJECT_PATH / "github-command.py"),
+        "--scripts-dir",
+        str(PROJECT_PATH),
+        "--config-file",
+        f"{workdir}/builders.list",
+        "--signer-fpr",
+        FEPITRE_FPR,
+        "Build-component",
+        f"{workdir}/command",
+    ]
+    command_process = subprocess.Popen(cmd)
+    all_processes = get_all_processes()
+    for b in builders_list:
+        release, builder_dir, builder_conf = b
+        cmdline = f"flock -s {builder_dir}/builder.lock bash -c {PROJECT_PATH}/github-action.py --signer-fpr {FEPITRE_FPR} build-component {builder_dir} {builder_conf} app-linux-split-gpg"
+        if not find_github_action(all_processes, cmdline):
+            raise ValueError(f"{cmdline}: cannot find process.")
+    command_process.communicate()
+    if command_process.poll() != 0:
+        raise ValueError("github-command failed.")
+
+
+def test_command_01_upload_component(workdir):
+    commit_sha = "c5316c91107b8930ab4dc3341bc75293139b5b84"
+
+    # Create builder list
+    builders_list = create_builders_list(workdir)
+
+    # Write command
+    with open(f"{workdir}/command", "w") as f:
+        f.write(f"Upload-component r4.2 app-linux-split-gpg {commit_sha} current all")
+
+    # Dry-run
+    set_dry_run(f"{workdir}/builder.yml")
+
+    cmd = [
+        str(PROJECT_PATH / "github-command.py"),
+        "--scripts-dir",
+        str(PROJECT_PATH),
+        "--config-file",
+        f"{workdir}/builders.list",
+        "--signer-fpr",
+        FEPITRE_FPR,
+        "Upload-component",
+        f"{workdir}/command",
+    ]
+    subprocess.run(cmd, check=True)
+    all_processes = get_all_processes()
+    for b in builders_list:
+        release, builder_dir, builder_conf = b
+        cmdline = f"flock -s {builder_dir}/builder.lock bash -c {PROJECT_PATH}/github-action.py --signer-fpr {FEPITRE_FPR} upload-component {builder_dir} {builder_conf} app-linux-split-gpg {commit_sha} current --distribution all"
+        if not find_github_action(all_processes, cmdline):
+            raise ValueError(f"{cmdline}: cannot find process.")
+
+
+def test_command_02_build_template(workdir):
+    # Create builder list
+    builders_list = create_builders_list(workdir)
+
+    timestamp = datetime.datetime.utcnow().strftime("%Y%m%d%H%M")
+    with open(workdir / "timestamp", "w") as f:
+        f.write(timestamp)
+
+    # Write command
+    with open(f"{workdir}/command", "w") as f:
+        f.write(f"Build-template r4.2 debian-11 {timestamp}")
+
+    # Dry-run
+    set_dry_run(f"{workdir}/builder.yml")
+
+    cmd = [
+        str(PROJECT_PATH / "github-command.py"),
+        "--scripts-dir",
+        str(PROJECT_PATH),
+        "--config-file",
+        f"{workdir}/builders.list",
+        "--signer-fpr",
+        FEPITRE_FPR,
+        "Build-template",
+        f"{workdir}/command",
+    ]
+    command_process = subprocess.Popen(cmd)
+    all_processes = get_all_processes()
+    for b in builders_list:
+        release, builder_dir, builder_conf = b
+        cmdline = f"flock -s {builder_dir}/builder.lock bash -c {PROJECT_PATH}/github-action.py --signer-fpr {FEPITRE_FPR} build-template {builder_dir} {builder_conf} debian-11 {timestamp}"
+        if not find_github_action(all_processes, cmdline):
+            raise ValueError(f"{cmdline}: cannot find process.")
+    command_process.communicate()
+    if command_process.poll() != 0:
+        raise ValueError("github-command failed.")
+
+
+def test_command_03_upload_template(workdir):
+    # Create builder list
+    builders_list = create_builders_list(workdir)
+
+    with open(workdir / "timestamp", "r") as f:
+        timestamp = f.read().rstrip("\n")
+
+    # Write command
+    with open(f"{workdir}/command", "w") as f:
+        f.write(
+            f"Upload-template r4.2 debian-11 {timestamp} 4.1.0-{timestamp} templates-itl"
         )
 
-        # Clone qubes-builderv2
-        subprocess.run(
-            [
-                "git",
-                "-C",
-                tmpdir,
-                "clone",
-                "-b",
-                "devel",
-                "https://github.com/fepitre/qubes-builderv2",
-            ]
-        )
+    # Dry-run
+    set_dry_run(f"{workdir}/builder.yml")
 
-        with open(f"{tmpdir}/command", "w") as f:
-            f.write(f"Build-component r4.2 app-linux-split-gpg")
-
-        cmd = [
-            str(PROJECT_PATH / "github-command.py"),
-            "--scripts-dir",
-            str(PROJECT_PATH),
-            "--config-file",
-            f"{tmpdir}/builders.list",
-            "--signer-fpr",
-            FEPITRE_FPR,
-            "Build-component",
-            f"{tmpdir}/command",
-        ]
-        subprocess.run(cmd, check=True, capture_output=True)
+    cmd = [
+        str(PROJECT_PATH / "github-command.py"),
+        "--scripts-dir",
+        str(PROJECT_PATH),
+        "--config-file",
+        f"{workdir}/builders.list",
+        "--signer-fpr",
+        FEPITRE_FPR,
+        "Upload-template",
+        f"{workdir}/command",
+    ]
+    subprocess.run(cmd, check=True)
+    all_processes = get_all_processes()
+    for b in builders_list:
+        release, builder_dir, builder_conf = b
+        cmdline = f"flock -s {builder_dir}/builder.lock bash -c {PROJECT_PATH}/github-action.py --signer-fpr {FEPITRE_FPR} upload-template {builder_dir} {builder_conf} debian-11 {timestamp} 4.1.0-{timestamp} templates-itl"
+        if not find_github_action(all_processes, cmdline):
+            raise ValueError(f"{cmdline}: cannot find process.")
