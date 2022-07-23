@@ -26,17 +26,33 @@ import datetime
 import logging
 from pathlib import Path
 
-log = logging.getLogger('github-command')
+log = logging.getLogger("github-command")
 
 
 class GithubCommandError(Exception):
     pass
 
 
+def run_command(cmd, env=None, wait=False):
+    if wait:
+        try:
+            subprocess.run(cmd, env=env, check=True)
+        except subprocess.CalledProcessError as e:
+            raise GithubCommandError(f"Failed to run command: {str(e)}")
+    else:
+        subprocess.Popen(cmd, env=env)
+
+
 def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--log-basename")
+    parser.add_argument(
+        "--wait",
+        action="store_true",
+        default=False,
+        help="Don't put processes into background.",
+    )
     parser.add_argument(
         "--config-file",
         default=Path.home() / ".config/qubes-builder-github/builders.list",
@@ -128,7 +144,7 @@ def main():
         "-c",
         f"trap 'rm -f /tmp/update-qubes-builder' EXIT && cp {str(scripts_dir / 'update-qubes-builder')} /tmp && /tmp/update-qubes-builder {str(scripts_dir)}",
     ]
-    subprocess.Popen(cmd)
+    run_command(cmd, wait=args.wait)
 
     with open(args.config_file, "r") as f:
         content = f.read().splitlines()
@@ -155,7 +171,7 @@ def main():
             str(scripts_dir / "update-qubes-builder"),
             str(builder_dir),
         ]
-        subprocess.Popen(cmd)
+        run_command(cmd, wait=args.wait)
 
         # Prepare github-action
         github_action_cmd = [str(scripts_dir / "github-action.py")]
@@ -195,11 +211,14 @@ def main():
             "-c",
             " ".join(github_action_cmd),
         ]
-        subprocess.Popen(cmd,
-                         env={
-                            "PYTHONPATH": f"{builder_dir!s}:{os.environ.get('PYTHONPATH','')}",
-                            **os.environ
-                         })
+        run_command(
+            cmd,
+            wait=args.wait,
+            env={
+                "PYTHONPATH": f"{builder_dir!s}:{os.environ.get('PYTHONPATH','')}",
+                **os.environ,
+            },
+        )
 
 
 if __name__ == "__main__":
