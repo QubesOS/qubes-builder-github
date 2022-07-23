@@ -34,6 +34,7 @@ import os
 import signal
 import subprocess
 import sys
+import time
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -92,6 +93,7 @@ class BaseAutoAction:
         commit_sha=None,
         repository_publish=None,
         local_log_file=None,
+        dry_run=False,
     ):
         self.builder_dir = Path(builder_dir).resolve()
         self.builder_conf = builder_conf or self.builder_dir / "builder.yml"
@@ -101,6 +103,7 @@ class BaseAutoAction:
         self.qubes_release = self.config.get("qubes-release")
         self.commit_sha = commit_sha
         self.repository_publish = repository_publish
+        self.dry_run = False
 
         if not self.builder_dir.exists():
             raise AutoActionError(
@@ -818,6 +821,11 @@ def main():
             if args.template_name not in allowed_templates:
                 return
     else:
+        return
+
+    if cli.config.get("github", {}).get("dry-run", False):
+        # Dry-run mode (for tests only)
+        time.sleep(1)
         return
 
     with timeout(cli.timeout):
