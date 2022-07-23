@@ -51,5 +51,7 @@ executor:
         ]
     )
 
+    shutil.copytree(PROJECT_PATH, tmpdir / "qubes-builder-github")
+
     yield tmpdir
     # shutil.rmtree(tmpdir)
