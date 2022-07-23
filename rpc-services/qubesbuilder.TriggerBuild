@@ -46,10 +46,6 @@ case "${untrusted_component_name}" in
         ;;
 esac
 
-set -e
-
-scripts_dir="/usr/local/lib/qubes-builder-github"
-
 # shellcheck source=lib/functions.sh
 . "$scripts_dir/lib/functions.sh"
 
