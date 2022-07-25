@@ -53,5 +53,15 @@ executor:
 
     shutil.copytree(PROJECT_PATH, tmpdir / "qubes-builder-github")
 
-    yield tmpdir
+    env = os.environ.copy()
+    # Enforce keyring location
+    env["GNUPGHOME"] = tmpdir / ".gnupg"
+    # We prevent rpm to find ~/.rpmmacros and put logs into workdir
+    env["HOME"] = tmpdir
+    # Set PYTHONPATH with cloned qubes-builderv2
+    env[
+        "PYTHONPATH"
+    ] = f"{tmpdir / 'qubes-builderv2'!s}:{os.environ.get('PYTHONPATH','')}"
+
+    yield tmpdir, env
     # shutil.rmtree(tmpdir)
