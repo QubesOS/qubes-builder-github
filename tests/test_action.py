@@ -195,29 +195,6 @@ def _upload_component_check(tmpdir):
 def test_action_build_template(workdir):
     tmpdir, env = workdir
 
-    with open(f"{tmpdir}/builder.yml", "a") as f:
-        f.write(
-            f"""
-executor:
-  type: qubes
-  options:
-    dispvm: "qubes-builder-dvm"
-"""
-        )
-
-    # Clone qubes-builderv2
-    subprocess.run(
-        [
-            "git",
-            "-C",
-            tmpdir,
-            "clone",
-            "-b",
-            "devel",
-            "https://github.com/fepitre/qubes-builderv2",
-        ]
-    )
-
     timestamp = datetime.datetime.utcnow().strftime("%Y%m%d%H%M")
     with open(tmpdir / "timestamp", "w") as f:
         f.write(timestamp)
