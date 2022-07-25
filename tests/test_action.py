@@ -41,68 +41,52 @@ def rpm_packages_list(repository_dir):
 
 
 def test_action_build_component(workdir):
-    env = os.environ.copy()
-
-    # Enforce keyring location
-    env["GNUPGHOME"] = workdir / ".gnupg"
-
-    # We prevent rpm to find ~/.rpmmacros
-    env["HOME"] = workdir
-
-    env["PYTHONPATH"] = workdir / "qubes-builderv2"
+    tmpdir, env = workdir
 
     cmd = [
         str(PROJECT_PATH / "github-action.py"),
         "--local-log-file",
-        f"{workdir}/build-component.log",
+        f"{tmpdir}/build-component.log",
         "--signer-fpr",
         FEPITRE_FPR,
         "build-component",
-        f"{workdir}/qubes-builderv2",
-        f"{workdir}/builder.yml",
+        f"{tmpdir}/qubes-builderv2",
+        f"{tmpdir}/builder.yml",
         "app-linux-split-gpg",
     ]
     subprocess.run(cmd, check=True, capture_output=True, env=env)
-    _build_component_check(workdir)
+    _build_component_check(tmpdir)
 
 
-def _build_component_check(workdir):
+def _build_component_check(tmpdir):
     assert (
-        workdir
+        tmpdir
         / f"artifacts/components/app-linux-split-gpg/2.0.60-1/host-fc32/publish/gpg-split-dom0.publish.yml"
     ).exists()
 
     assert (
-        workdir
+        tmpdir
         / f"artifacts/components/app-linux-split-gpg/2.0.60-1/vm-bullseye/publish/debian.publish.yml"
     ).exists()
 
     assert (
-        workdir
+        tmpdir
         / f"artifacts/components/app-linux-split-gpg/2.0.60-1/vm-fc36/publish/gpg-split.publish.yml"
     ).exists
 
 
 def test_action_upload_component(workdir):
-    env = os.environ.copy()
-
-    # Enforce keyring location
-    env["GNUPGHOME"] = workdir / ".gnupg"
-
-    # We prevent rpm to find ~/.rpmmacros
-    env["HOME"] = workdir
-
-    env["PYTHONPATH"] = workdir / "qubes-builderv2"
+    tmpdir, env = workdir
 
     cmd = [
         str(PROJECT_PATH / "github-action.py"),
         "--local-log-file",
-        f"{workdir}/upload-component.log",
+        f"{tmpdir}/upload-component.log",
         "--signer-fpr",
         FEPITRE_FPR,
         "upload-component",
-        f"{workdir}/qubes-builderv2",
-        f"{workdir}/builder.yml",
+        f"{tmpdir}/qubes-builderv2",
+        f"{tmpdir}/builder.yml",
         "app-linux-split-gpg",
         "c5316c91107b8930ab4dc3341bc75293139b5b84",
         "security-testing",
@@ -111,17 +95,17 @@ def test_action_upload_component(workdir):
     ]
     subprocess.run(cmd, check=True, capture_output=True, env=env)
 
-    _fix_timestamp_repo(workdir)
+    _fix_timestamp_repo(tmpdir)
 
     cmd = [
         str(PROJECT_PATH / "github-action.py"),
         "--local-log-file",
-        f"{workdir}/upload-component.log",
+        f"{tmpdir}/upload-component.log",
         "--signer-fpr",
         FEPITRE_FPR,
         "upload-component",
-        f"{workdir}/qubes-builderv2",
-        f"{workdir}/builder.yml",
+        f"{tmpdir}/qubes-builderv2",
+        f"{tmpdir}/builder.yml",
         "app-linux-split-gpg",
         "c5316c91107b8930ab4dc3341bc75293139b5b84",
         "current",
@@ -129,24 +113,24 @@ def test_action_upload_component(workdir):
         "all",
     ]
     subprocess.run(cmd, check=True, capture_output=True, env=env)
-    _upload_component_check(workdir)
+    _upload_component_check(tmpdir)
 
 
-def _fix_timestamp_repo(workdir):
+def _fix_timestamp_repo(tmpdir):
     for distribution in ["host-fc32", "vm-bullseye", "vm-fc36"]:
         if distribution == "host-fc32":
             artifacts_path = (
-                workdir
+                tmpdir
                 / f"artifacts/components/app-linux-split-gpg/2.0.60-1/{distribution}/publish/gpg-split-dom0.publish.yml"
             )
         elif distribution == "vm-bullseye":
             artifacts_path = (
-                workdir
+                tmpdir
                 / f"artifacts/components/app-linux-split-gpg/2.0.60-1/{distribution}/publish/debian.publish.yml"
             )
         else:
             artifacts_path = (
-                workdir
+                tmpdir
                 / f"artifacts/components/app-linux-split-gpg/2.0.60-1/{distribution}/publish/gpg-split.publish.yml"
             )
         info = yaml.safe_load(artifacts_path.read())
@@ -171,14 +155,14 @@ def _fix_timestamp_repo(workdir):
             f.write(yaml.dump(info))
 
 
-def _upload_component_check(workdir):
+def _upload_component_check(tmpdir):
     # host-fc32
     rpms = [
         "qubes-gpg-split-dom0-2.0.60-1.fc32.src.rpm",
         "qubes-gpg-split-dom0-2.0.60-1.fc32.x86_64.rpm",
     ]
     for repository in ["current-testing", "security-testing", "current"]:
-        repository_dir = f"file://{workdir}/artifacts/repository-publish/rpm/r4.2/{repository}/host/fc32"
+        repository_dir = f"file://{tmpdir}/artifacts/repository-publish/rpm/r4.2/{repository}/host/fc32"
         packages = rpm_packages_list(repository_dir)
         assert set(rpms) == set(packages)
 
@@ -191,12 +175,12 @@ def _upload_component_check(workdir):
         "qubes-gpg-split-debugsource-2.0.60-1.fc36.x86_64.rpm",
     ]
     for repository in ["current-testing", "security-testing", "current"]:
-        repository_dir = f"file://{workdir}/artifacts/repository-publish/rpm/r4.2/{repository}/vm/fc36"
+        repository_dir = f"file://{tmpdir}/artifacts/repository-publish/rpm/r4.2/{repository}/vm/fc36"
         packages = rpm_packages_list(repository_dir)
         assert set(rpms) == set(packages)
 
     # vm-bullseye
-    repository_dir = workdir / "artifacts/repository-publish/deb/r4.2/vm"
+    repository_dir = tmpdir / "artifacts/repository-publish/deb/r4.2/vm"
     for codename in ["bullseye-testing", "bullseye-securitytesting", "bullseye"]:
         packages = deb_packages_list(repository_dir, codename)
         expected_packages = [
@@ -209,17 +193,9 @@ def _upload_component_check(workdir):
 
 
 def test_action_build_template(workdir):
-    env = os.environ.copy()
+    tmpdir, env = workdir
 
-    # Enforce keyring location
-    env["GNUPGHOME"] = workdir / ".gnupg"
-
-    # We prevent rpm to find ~/.rpmmacros
-    env["HOME"] = workdir
-
-    env["PYTHONPATH"] = workdir / "qubes-builderv2"
-
-    with open(f"{workdir}/builder.yml", "a") as f:
+    with open(f"{tmpdir}/builder.yml", "a") as f:
         f.write(
             f"""
 executor:
@@ -234,7 +210,7 @@ executor:
         [
             "git",
             "-C",
-            workdir,
+            tmpdir,
             "clone",
             "-b",
             "devel",
@@ -243,65 +219,57 @@ executor:
     )
 
     timestamp = datetime.datetime.utcnow().strftime("%Y%m%d%H%M")
-    with open(workdir / "timestamp", "w") as f:
+    with open(tmpdir / "timestamp", "w") as f:
         f.write(timestamp)
 
     cmd = [
         str(PROJECT_PATH / "github-action.py"),
         "--local-log-file",
-        f"{workdir}/build-template.log",
+        f"{tmpdir}/build-template.log",
         "--signer-fpr",
         FEPITRE_FPR,
         "build-template",
-        f"{workdir}/qubes-builderv2",
-        f"{workdir}/builder.yml",
+        f"{tmpdir}/qubes-builderv2",
+        f"{tmpdir}/builder.yml",
         "debian-11",
         timestamp,
     ]
     subprocess.run(cmd, check=True, capture_output=True, env=env)
-    _build_template_check(workdir)
+    _build_template_check(tmpdir)
 
 
-def _build_template_check(workdir):
-    assert (workdir / f"artifacts/templates/debian-11.publish.yml").exists()
+def _build_template_check(tmpdir):
+    assert (tmpdir / f"artifacts/templates/debian-11.publish.yml").exists()
 
 
 def test_action_upload_template(workdir):
-    env = os.environ.copy()
+    tmpdir, env = workdir
 
-    # Enforce keyring location
-    env["GNUPGHOME"] = workdir / ".gnupg"
-
-    # We prevent rpm to find ~/.rpmmacros
-    env["HOME"] = workdir
-
-    env["PYTHONPATH"] = workdir / "qubes-builderv2"
-
-    with open(workdir / "timestamp", "r") as f:
+    with open(tmpdir / "timestamp", "r") as f:
         build_timestamp = f.read().rstrip("\n")
 
-    _fix_template_timestamp_repo(workdir)
+    _fix_template_timestamp_repo(tmpdir)
 
     cmd = [
         str(PROJECT_PATH / "github-action.py"),
         "--local-log-file",
-        f"{workdir}/upload-template.log",
+        f"{tmpdir}/upload-template.log",
         "--signer-fpr",
         FEPITRE_FPR,
         "upload-template",
-        f"{workdir}/qubes-builderv2",
-        f"{workdir}/builder.yml",
+        f"{tmpdir}/qubes-builderv2",
+        f"{tmpdir}/builder.yml",
         "debian-11",
         build_timestamp,
         f"4.1.0-{build_timestamp}",
         "templates-itl",
     ]
     subprocess.run(cmd, check=True, capture_output=True, env=env)
-    _upload_template_check(workdir)
+    _upload_template_check(tmpdir)
 
 
-def _fix_template_timestamp_repo(workdir):
-    artifacts_path = workdir / f"artifacts/templates/debian-11.publish.yml"
+def _fix_template_timestamp_repo(tmpdir):
+    artifacts_path = tmpdir / f"artifacts/templates/debian-11.publish.yml"
     info = yaml.safe_load(artifacts_path.read())
     publish_timestamp = None
     for repo in info["repository-publish"]:
@@ -325,8 +293,8 @@ def _fix_template_timestamp_repo(workdir):
         f.write(yaml.dump(info))
 
 
-def _upload_template_check(workdir):
-    with open(workdir / "timestamp", "r") as f:
+def _upload_template_check(tmpdir):
+    with open(tmpdir / "timestamp", "r") as f:
         build_timestamp = f.read().rstrip("\n")
 
     # host-fc32
@@ -335,7 +303,7 @@ def _upload_template_check(workdir):
     ]
     for repository in ["templates-itl-testing", "templates-itl"]:
         repository_dir = (
-            f"file://{workdir}/artifacts/repository-publish/rpm/r4.2/{repository}"
+            f"file://{tmpdir}/artifacts/repository-publish/rpm/r4.2/{repository}"
         )
         packages = rpm_packages_list(repository_dir)
         assert set(rpms) == set(packages)
