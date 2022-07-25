@@ -111,6 +111,28 @@ def test_action_upload_component(workdir):
     ]
     subprocess.run(cmd, check=True, capture_output=True, env=env)
 
+    _fix_timestamp_repo(workdir)
+
+    cmd = [
+        str(PROJECT_PATH / "github-action.py"),
+        "--local-log-file",
+        f"{workdir}/upload-component.log",
+        "--signer-fpr",
+        FEPITRE_FPR,
+        "upload-component",
+        f"{workdir}/qubes-builderv2",
+        f"{workdir}/builder.yml",
+        "app-linux-split-gpg",
+        "c5316c91107b8930ab4dc3341bc75293139b5b84",
+        "current",
+        "--distribution",
+        "all",
+    ]
+    subprocess.run(cmd, check=True, capture_output=True, env=env)
+    _upload_component_check(workdir)
+
+
+def _fix_timestamp_repo(workdir):
     for distribution in ["host-fc32", "vm-bullseye", "vm-fc36"]:
         if distribution == "host-fc32":
             artifacts_path = (
@@ -147,24 +169,6 @@ def test_action_upload_component(workdir):
 
         with open(artifacts_path, "w") as f:
             f.write(yaml.dump(info))
-
-    cmd = [
-        str(PROJECT_PATH / "github-action.py"),
-        "--local-log-file",
-        f"{workdir}/upload-component.log",
-        "--signer-fpr",
-        FEPITRE_FPR,
-        "upload-component",
-        f"{workdir}/qubes-builderv2",
-        f"{workdir}/builder.yml",
-        "app-linux-split-gpg",
-        "c5316c91107b8930ab4dc3341bc75293139b5b84",
-        "current",
-        "--distribution",
-        "all",
-    ]
-    subprocess.run(cmd, check=True, capture_output=True, env=env)
-    _upload_component_check(workdir)
 
 
 def _upload_component_check(workdir):
@@ -276,10 +280,29 @@ def test_action_upload_template(workdir):
     with open(workdir / "timestamp", "r") as f:
         build_timestamp = f.read().rstrip("\n")
 
+    _fix_template_timestamp_repo(workdir)
+
+    cmd = [
+        str(PROJECT_PATH / "github-action.py"),
+        "--local-log-file",
+        f"{workdir}/upload-template.log",
+        "--signer-fpr",
+        FEPITRE_FPR,
+        "upload-template",
+        f"{workdir}/qubes-builderv2",
+        f"{workdir}/builder.yml",
+        "debian-11",
+        build_timestamp,
+        f"4.1.0-{build_timestamp}",
+        "templates-itl",
+    ]
+    subprocess.run(cmd, check=True, capture_output=True, env=env)
+    _upload_template_check(workdir)
+
+
+def _fix_template_timestamp_repo(workdir):
     artifacts_path = workdir / f"artifacts/templates/debian-11.publish.yml"
-
     info = yaml.safe_load(artifacts_path.read())
-
     publish_timestamp = None
     for repo in info["repository-publish"]:
         if repo["name"] == "templates-itl-testing":
@@ -300,23 +323,6 @@ def test_action_upload_template(workdir):
 
     with open(artifacts_path, "w") as f:
         f.write(yaml.dump(info))
-
-    cmd = [
-        str(PROJECT_PATH / "github-action.py"),
-        "--local-log-file",
-        f"{workdir}/upload-template.log",
-        "--signer-fpr",
-        FEPITRE_FPR,
-        "upload-template",
-        f"{workdir}/qubes-builderv2",
-        f"{workdir}/builder.yml",
-        "debian-11",
-        build_timestamp,
-        f"4.1.0-{build_timestamp}",
-        "templates-itl",
-    ]
-    subprocess.run(cmd, check=True, capture_output=True, env=env)
-    _upload_template_check(workdir)
 
 
 def _upload_template_check(workdir):
