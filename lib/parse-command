@@ -40,15 +40,80 @@ def check_base64(untrusted_bytes: bytes) -> None:
             raise BadCommandError("invalid base64 character")
 
 
+def validate_upload_component_command(untrusted_command: bytes) -> None:
+    """
+    Validate an upload command.
+    """
+    untrusted_args = untrusted_command.split(b" ")
+    if len(untrusted_args) < 6:
+        raise BadCommandError(
+            "Upload takes at least five arguments: component name, commit sha, "
+            'release name, repo name, "all" or distributions'
+        )
+    if untrusted_args[0] != b"Upload-component":
+        raise AssertionError("Wrong command passed to validate_upload_component_command")
+    (
+        untrusted_release_name,
+        untrusted_component,
+        untrusted_commit_sha,
+        untrusted_repo_name,
+    ) = untrusted_args[1:5]
+    if not untrusted_component:
+        raise BadCommandError("Empty component name")
+    if b"." in untrusted_component:
+        raise BadCommandError('"." not allowed in component name')
+    allowed_repos = (b'current', b'security-testing')
+    if len(untrusted_commit_sha) != 40:
+        raise BadCommandError(
+            "Wrong length of commit SHA: found {}, expected 40".format(
+                len(untrusted_commit_sha)
+            )
+        )
+    for i in untrusted_commit_sha:
+        if (0x30 <= i <= 0x39) or (0x61 <= i <= 0x66):
+            pass
+        else:
+            raise BadCommandError(
+                "'{}' is not a valid commit SHA".format(
+                    untrusted_commit_sha.decode('ascii', 'strict')
+                )
+            )
+    if untrusted_repo_name not in allowed_repos:
+        raise BadCommandError("Unsupported repository name {}".format(
+            untrusted_repo_name.decode('ascii', 'strict')
+        ))
+
+    if untrusted_args[5] == b"all":
+        return
+    for untrusted_dist_pair in untrusted_args[5:]:
+        # all other metacharacters caught sooner
+        if b"." in untrusted_dist_pair:
+            raise BadCommandError('Dist pair cannot contain "."')
+        if untrusted_dist_pair.startswith(b"host-"):
+            untrusted_dist = untrusted_dist_pair[5:]
+        elif untrusted_dist_pair.startswith(b"vm-"):
+            untrusted_dist = untrusted_dist_pair[3:]
+        else:
+            raise BadCommandError(
+                'Invalid package set (must be "host-" or "vm-", without quotes)'
+            )
+        if not untrusted_dist:
+            raise BadCommandError(f"Empty dist following {str(untrusted_dist_pair)}")
+        if not (0x61 <= untrusted_dist[0] <= 0x7A):
+            raise BadCommandError(
+                "Package set must be followed by a lowercase ASCII letter"
+            )
+
+
 def validate_build_template_command(untrusted_command: bytes) -> None:
     """
-    Validate the arguments to a build_template command.
+    Validate a build template command.
     """
     try:
         (
             command,
             untrusted_release_name,
-            untrusted_dist,
+            untrusted_template_name,
             untrusted_timestamp,
         ) = untrusted_command.split(b" ")
     except ValueError:
@@ -59,10 +124,10 @@ def validate_build_template_command(untrusted_command: bytes) -> None:
         raise AssertionError("Wrong command passed to validate_build_template_command")
     if not untrusted_release_name:
         raise BadCommandError("Empty release name")
-    if not untrusted_dist:
-        raise BadCommandError("Empty dist")
-    if b"." in untrusted_dist:
-        raise BadCommandError("'.' not allowed in dist")
+    if not untrusted_template_name:
+        raise BadCommandError("Empty template name")
+    if b"." in untrusted_template_name:
+        raise BadCommandError("'.' not allowed in template name")
     timestamp_len = len(untrusted_timestamp)
     if timestamp_len != 12:
         raise BadCommandError(f"Timestamp must be 12 bytes long, not {timestamp_len}")
@@ -73,81 +138,43 @@ def validate_build_template_command(untrusted_command: bytes) -> None:
             )
 
 
-def validate_upload_command(untrusted_command: bytes) -> None:
+def validate_upload_template_command(untrusted_command: bytes) -> None:
     """
-    Validate an upload command
+    Validate an upload template command.
     """
     untrusted_args = untrusted_command.split(b" ")
-    if len(untrusted_args) < 6:
+    if len(untrusted_args) != 6:
         raise BadCommandError(
-            "Upload takes at least five arguments: component name, commit sha, "
-            'release name, repo name, zero or more distributions, and "repo"'
+            "Upload takes five arguments: release name, template name, "
+            "template timestamp, template sha (format RELEASE-TIMESTAMP) and repo."
         )
-    if untrusted_args[0] != b"Upload":
-        raise AssertionError("Wrong command passed to validate_upload_command")
-    if untrusted_args[-1] != b"repo":
-        raise BadCommandError(
-            'Last argument to upload command must be "repo" (without quotes)'
-        )
+    if untrusted_args[0] != b"Upload-template":
+        raise AssertionError("Wrong command passed to validate_upload_template_command")
     (
-        untrusted_component,
-        untrusted_commit_sha,
         untrusted_release_name,
+        untrusted_template_name,
+        untrusted_timestamp,
+        untrusted_template_sha,
         untrusted_repo_name,
-    ) = untrusted_args[1:5]
-    if not untrusted_component:
+    ) = untrusted_args[1:6]
+    if not untrusted_template_name:
         raise BadCommandError("Empty component name")
-    if b"." in untrusted_component:
+    if b"." in untrusted_template_name:
         raise BadCommandError('"." not allowed in component name')
-    is_template = untrusted_component == b"linux-template-builder"
-    if is_template:
-        allowed_repos = (b'templates-itl', b'templates-community')
-        if len(untrusted_args) != 7:
-            raise BadCommandError(
-                "Can only upload one template at a time, not {}".format(
-                    len(untrusted_args)
-                )
-            )
-    else:
-        allowed_repos = (b'current', b'security-testing')
-        if len(untrusted_commit_sha) != 40:
-            raise BadCommandError(
-                "Wrong length of commit SHA: found {}, expected 40".format(
-                    len(untrusted_commit_sha)
-                )
-            )
-        for i in untrusted_commit_sha:
-            if (0x30 <= i <= 0x39) or (0x61 <= i <= 0x66):
-                pass
-            else:
-                raise BadCommandError(
-                    "'{}' is not a valid commit SHA".format(
-                        untrusted_commit_sha.encode('ascii', 'strict')
-                    )
-                )
+
+    allowed_repos = (b'templates-itl', b'templates-community')
     if untrusted_repo_name not in allowed_repos:
         raise BadCommandError("Unsupported repository name {}".format(
-            untrusted_repo_name.encode('ascii', 'strict')
+            untrusted_repo_name.decode('ascii', 'strict')
         ))
-    for untrusted_dist_pair in untrusted_args[5:-1]:
-        # all other metacharacters caught sooner
-        if b"." in untrusted_dist_pair:
-            raise BadCommandError('Dist pair cannot contain "."')
-        if untrusted_dist_pair.startswith(b"dom0-"):
-            if is_template:
-                raise BadCommandError("Templates cannot be uploaded for dom0")
-            untrusted_dist = untrusted_dist_pair[5:]
-        elif untrusted_dist_pair.startswith(b"vm-"):
-            untrusted_dist = untrusted_dist_pair[3:]
-        else:
+
+    timestamp_len = len(untrusted_timestamp)
+    if timestamp_len != 12:
+        raise BadCommandError(f"Timestamp must be 12 bytes long, not {timestamp_len}")
+    for i in untrusted_timestamp:
+        if not (0x30 <= i <= 0x39):
             raise BadCommandError(
-                'Invalid package set (must be "dom0-" or "vm-", without quotes)'
-            )
-        if not untrusted_dist:
-            raise BadCommandError(f"Empty dist following {str(untrusted_dist_pair)}")
-        if not (0x61 <= untrusted_dist[0] <= 0x7A):
-            raise BadCommandError(
-                "Package set must be followed by a lowercase ASCII letter"
+                "Timestamp must be exactly 12 decimal digits, including leading zeros"
             )
 
 
@@ -177,10 +204,13 @@ def check_command(untrusted_command: bytes) -> None:
         raise BadCommandError("Trailing whitespace in command forbidden")
     if untrusted_command.startswith(b"Build-template "):
         validate_build_template_command(untrusted_command)
-    elif untrusted_command.startswith(b"Upload "):
-        validate_upload_command(untrusted_command)
+    elif untrusted_command.startswith(b"Upload-template "):
+        validate_upload_template_command(untrusted_command)
+    elif untrusted_command.startswith(b"Upload-component "):
+        validate_upload_component_command(untrusted_command)
     else:
         raise BadCommandError("Unknown command")
+
 
 def check_one_signature_packet(untrusted_binary_sig: bytes) -> bytes:
     """
@@ -226,6 +256,7 @@ def check_one_signature_packet(untrusted_binary_sig: bytes) -> bytes:
     if tag != 2:
         raise BadCommandError("packet is not a signature")
     return untrusted_binary_sig[len_bytes + 1:]
+
 
 def check_binary_signature(untrusted_binary_sig: bytes, hash_str: bytes) -> None:
     untrusted_binary_sig = check_one_signature_packet(untrusted_binary_sig)
