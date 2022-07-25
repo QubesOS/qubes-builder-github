@@ -18,10 +18,6 @@
 
 set -eux
 
-# Don't read anything from standard input
-exec </dev/null
-
-# also, don't return anything; log it locally, just in case
 mkdir -p "$HOME/builder-github-logs"
 log_basename="$HOME/builder-github-logs/$(date +%s)-$$"
 exec >>"${log_basename}.log" 2>&1
