@@ -35,6 +35,7 @@ import signal
 import subprocess
 import sys
 import time
+import traceback
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -845,5 +846,6 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
+        traceback.print_exc()
         log.error(str(e))
         sys.exit(1)
