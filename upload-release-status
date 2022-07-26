@@ -1,11 +1,13 @@
-#!/bin/sh
+#!/bin/bash
+
+set -ex
 
 # Upload HTML version of `make check-release-status` to updates server
 
 scripts_dir="/usr/local/lib/qubes-builder-github"
 
 # shellcheck source=lib/functions.sh
-. "$scripts_dir/functions.sh"
+. "$scripts_dir/lib/functions.sh"
 
 status_templates_dir=$(realpath "$scripts_dir")/../templates
 
@@ -25,8 +27,9 @@ fi
 ssh "$HOST" mkdir -p status
 
 check_release_status() {
-    tmp_output="/tmp/${2##*/}-$(hostname)-status.html"
-    make --no-print-directory -C "$2" HTML_FORMAT=1 check-release-status > "$tmp_output"
+    tmp_output="/tmp/${2##*/}-$(hostname)-status.yml"
+    cd "$2"
+    ./qb repository check-release-status-component > "$tmp_output"
     scp "$tmp_output" "$HOST:status/"
 }
 
@@ -34,5 +37,5 @@ execute_in_each_builder check_release_status
 
 wait
 
-scp "$status_templates_dir"/status-*.html "$scripts_dir"/combine-status "$HOST:status/"
-ssh "$HOST" status/combine-status
+scp "$status_templates_dir"/status-*.html "$scripts_dir"/combine-status.py "$HOST:status/"
+ssh "$HOST" status/combine-status.py status/ public_html/
