@@ -76,9 +76,9 @@ def timeout(time):
 
 
 class AutoActionError(Exception):
-    def __init__(self, log_file=None, args=None):
-        self.log_file = log_file
+    def __init__(self, *args, log_file=None):
         self.args = args
+        self.log_file = log_file
 
 
 class AutoActionTimeout(Exception):
@@ -152,7 +152,7 @@ class BaseAutoAction:
             func(*args)
             log.debug("> done")
         except PluginError as e:
-            raise AutoActionError(log_file=self.local_log_file, args=e.args) from e
+            raise AutoActionError(e.args, log_file=self.local_log_file) from e
         finally:
             log.removeHandler(log_fh)
         return self.local_log_file
@@ -178,7 +178,7 @@ class BaseAutoAction:
                 p.wait()
                 log_file = list(p.stdout)
                 log_file = log_file[0].rstrip("\n")
-                raise AutoActionError(log_file=log_file, args=e.args) from e
+                raise AutoActionError(e.args, log_file=log_file) from e
             else:
                 p.stdin.close()
                 p.wait()
