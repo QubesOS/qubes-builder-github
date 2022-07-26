@@ -121,6 +121,14 @@ def main():
             ) = command[1:]
         elif args.command == "Build-template":
             release_name, template_name, template_timestamp = command[1:]
+
+            timestamp = datetime.datetime.strptime(template_timestamp, "%Y%m%d%H%M")
+            timestamp_max = datetime.datetime.utcnow() + datetime.timedelta(minutes=5)
+            timestamp_min = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+            if timestamp < timestamp_min or timestamp_max < timestamp:
+                raise GithubCommandError(
+                    f"Timestamp outside of allowed range (min: {timestamp_min}, max: {timestamp_max}, current={timestamp}"
+                )
         elif args.command == "Upload-template":
             (
                 release_name,
@@ -131,13 +139,6 @@ def main():
             ) = command[1:]
     except IndexError as e:
         raise GithubCommandError(f"Wrong number of args provided: {str(e)}")
-
-    if template_timestamp:
-        timestamp = datetime.datetime.strptime(template_timestamp, "%Y%m%d%H%M")
-        timestamp_max = datetime.datetime.utcnow() + datetime.timedelta(minutes=5)
-        timestamp_min = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
-        if timestamp < timestamp_min or timestamp_max < timestamp:
-            raise GithubCommandError("Timestamp outside of allowed range")
 
     # Update GitHub Builder
     cmd = [
