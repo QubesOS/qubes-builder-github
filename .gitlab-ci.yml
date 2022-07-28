@@ -13,4 +13,4 @@ pytest:
   before_script:
     - sudo dnf install -y python3-pathspec sequoia-sqv
   script:
-    - pytest-3 -vvv --color=yes tests/
+    - TMPDIR=/home/user pytest-3 -vvv --color=yes tests/
