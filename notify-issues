@@ -248,23 +248,6 @@ class NotifyIssueCli:
                 for key, value in message_template_kwargs.items():
                     message = message.replace(key, value)
 
-            if not os.path.exists(message_template_path):
-                log.warning(f"Cannot find template message")
-                return None
-
-            with open(message_template_path) as f:
-                message_template = f.read()
-
-            message = (
-                message_template.replace("@COMPONENT@", component)
-                .replace("@RELEASE_NAME@", release)
-                .replace("@VERSION@", version)
-            )
-
-            if message_template_kwargs is not None:
-                for key, value in message_template_kwargs.items():
-                    message = message.replace(key, value)
-
             try:
                 issue = github_repo.create_issue(title=issue_title, body=message)
                 issue_no = issue.number
