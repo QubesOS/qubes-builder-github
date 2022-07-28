@@ -1,0 +1,16 @@
+stages:
+  - test
+
+variables:
+  DEBUG: "1"
+
+pytest:
+  stage: test
+  tags:
+    - qubes
+  variables:
+    PYTHONPATH: .
+  before_script:
+    - sudo dnf install -y python3-pathspec sequoia-sqv
+  script:
+    - pytest-3 -vvv --color=yes tests/
