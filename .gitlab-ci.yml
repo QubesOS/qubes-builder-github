@@ -8,9 +8,15 @@ pytest:
   stage: test
   tags:
     - qubes
-  variables:
-    PYTHONPATH: .
+  artifacts:
+    paths:
+      - results
   before_script:
     - sudo dnf install -y python3-pathspec sequoia-sqv
   script:
-    - TMPDIR=/home/user pytest-3 -vvv --color=yes tests/
+    - TMPDIR=~ pytest-3 -vvv --color=yes tests/
+  after_script:
+    - sudo rm -rf $CI_PROJECT_DIR/results
+    - mkdir $CI_PROJECT_DIR/results
+    - cp -r ~/pytest-current/github-current/*.log $CI_PROJECT_DIR/results || true
+    - cp -r ~/pytest-current/github-current/builder-github-logs $CI_PROJECT_DIR/results/
