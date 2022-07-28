@@ -717,18 +717,18 @@ def main():
     template_parser.add_argument("builder_dir")
     template_parser.add_argument("builder_conf")
     template_parser.add_argument("template_name")
-    template_parser.add_argument("template_timestamp")
     template_parser.add_argument("template_sha")
     template_parser.add_argument("repository_publish")
 
     args = parser.parse_args()
 
+    commit_sha = None
+    template_timestamp = None
     if args.command == "upload-component":
         commit_sha = args.commit_sha
     elif args.command == "upload-template":
         commit_sha = args.template_sha
-    else:
-        commit_sha = None
+        template_timestamp = commit_sha.split("-")[-1]
 
     if args.command in ("upload-component", "upload-template"):
         repository_publish = args.repository_publish
@@ -799,7 +799,7 @@ def main():
             builder_dir=args.builder_dir,
             builder_conf=args.builder_conf,
             template_name=args.template_name,
-            template_timestamp=args.template_timestamp,
+            template_timestamp=template_timestamp,
             state_dir=args.state_dir,
             commit_sha=commit_sha,
             repository_publish=repository_publish,

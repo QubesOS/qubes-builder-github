@@ -143,20 +143,19 @@ def validate_upload_template_command(untrusted_command: bytes) -> None:
     Validate an upload template command.
     """
     untrusted_args = untrusted_command.split(b" ")
-    if len(untrusted_args) != 6:
+    if len(untrusted_args) != 5:
         raise BadCommandError(
-            "Upload takes five arguments: release name, template name, "
-            "template timestamp, template sha (format RELEASE-TIMESTAMP) and repo."
+            "Upload takes four arguments: release name, template name, "
+            "template sha (format RELEASE-TIMESTAMP) and repo."
         )
     if untrusted_args[0] != b"Upload-template":
         raise AssertionError("Wrong command passed to validate_upload_template_command")
     (
         untrusted_release_name,
         untrusted_template_name,
-        untrusted_timestamp,
         untrusted_template_sha,
         untrusted_repo_name,
-    ) = untrusted_args[1:6]
+    ) = untrusted_args[1:5]
     if not untrusted_template_name:
         raise BadCommandError("Empty component name")
     if b"." in untrusted_template_name:
@@ -168,6 +167,7 @@ def validate_upload_template_command(untrusted_command: bytes) -> None:
             untrusted_repo_name.decode('ascii', 'strict')
         ))
 
+    untrusted_timestamp = untrusted_template_sha.split(b"-")[-1]
     timestamp_len = len(untrusted_timestamp)
     if timestamp_len != 12:
         raise BadCommandError(f"Timestamp must be 12 bytes long, not {timestamp_len}")

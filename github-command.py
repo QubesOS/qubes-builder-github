@@ -133,7 +133,6 @@ def main():
             (
                 release_name,
                 template_name,
-                template_timestamp,
                 template_sha,
                 repository_publish,
             ) = command[1:]
@@ -207,7 +206,6 @@ def main():
         elif args.command == "Upload-template":
             github_action_cmd += [
                 template_name,
-                template_timestamp,
                 template_sha,
                 repository_publish,
             ]

@@ -1,5 +1,4 @@
 import datetime
-import os.path
 import subprocess
 import tempfile
 from pathlib import Path
@@ -237,7 +236,6 @@ def test_action_upload_template(workdir):
         f"{tmpdir}/qubes-builderv2",
         f"{tmpdir}/builder.yml",
         "debian-11",
-        build_timestamp,
         f"4.1.0-{build_timestamp}",
         "templates-itl",
     ]
