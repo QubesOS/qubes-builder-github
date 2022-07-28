@@ -302,7 +302,7 @@ class NotifyIssueCli:
             )
         elif (self.message_templates_dir / f"{message}-{self.dist.fullname}").exists():
             message_template_path = (
-                self.message_templates_dir / f"{message}-{self.dist.name}"
+                self.message_templates_dir / f"{message}-{self.dist.fullname}"
             )
         else:
             log.warning("Cannot find message template not adding comments")
