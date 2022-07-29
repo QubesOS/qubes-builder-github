@@ -211,7 +211,7 @@ def main():
             ]
         cmd = [
             "flock",
-            "-s",
+            "-x",
             str(builder_dir / "builder.lock"),
             "bash",
             "-c",
