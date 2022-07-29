@@ -24,55 +24,73 @@ def create_builders_list(directory):
     return builders
 
 
-def fix_scripts_dir(workdir, logfile, env=None):
+def fix_scripts_dir(tmpdir, logfile, env=None):
     if env is None:
         env = os.environ.copy()
 
-    scripts_dir = workdir / "qubes-builder-github"
+    scripts_dir = tmpdir / "qubes-builder-github"
 
     subprocess.run(
-        [f"gpg2 --export {TESTUSER_FPR} > {workdir}/trusted-keys-for-commands.gpg"],
+        [f"gpg2 --export {TESTUSER_FPR} > {tmpdir}/trusted-keys-for-commands.gpg"],
         env=env,
         shell=True,
         check=True,
     )
 
-    with open(scripts_dir / f"lib/functions.sh", "r") as f:
-        content = f.read()
+    builder_maintainers_keyring = tmpdir / "builder-maintainers-keyring"
+    if not builder_maintainers_keyring.exists():
+        builder_maintainers_keyring.mkdir()
+    subprocess.run(
+        [
+            f"gpg2 --import {tmpdir}/qubes-builder-github/keys/9FA64B92F95E706BF28E2CA6484010B5CDC576E2.asc {tmpdir}/qubes-builder-github/keys/qubes-developers-keys.asc "
+            f"&& echo '427F11FD0FAA4B080123F01CDDFA1A3E36879494:6:' | gpg --import-ownertrust "
+            f"&& echo '9FA64B92F95E706BF28E2CA6484010B5CDC576E2:6:' | gpg --import-ownertrust"
+        ],
+        env={"GNUPGHOME": f"{tmpdir}/builder-maintainers-keyring"},
+        shell=True,
+        check=True,
+    )
+    os.chmod(builder_maintainers_keyring, 0o700)
+
+    # Use local keyring for trusted keys for updating builders
+    content = (scripts_dir / "update-qubes-builder").read_text(encoding="utf-8")
+    content = content.replace(
+        'keyring_path="$HOME/.config/qubes-builder-github/builder-maintainers-keyring"',
+        f'keyring_path="{tmpdir}/builder-maintainers-keyring"',
+    )
+    (scripts_dir / "update-qubes-builder").write_text(content, encoding="utf-8")
 
     # change config_file location
+    content = (scripts_dir / "lib/functions.sh").read_text(encoding="utf-8")
     content = content.replace(
         'config_file="$HOME/.config/qubes-builder-github/builders.list"',
-        f'config_file="{workdir}/builders.list"',
+        f'config_file="{tmpdir}/builders.list"',
     )
 
-    with open(scripts_dir / f"lib/functions.sh", "w") as f:
-        f.write(content)
+    (scripts_dir / "lib/functions.sh").write_text(content, encoding="utf-8")
 
     for rpc in ["qubesbuilder.TriggerBuild", "qubesbuilder.ProcessGithubCommand"]:
-        with open(scripts_dir / f"rpc-services/{rpc}", "r") as f:
-            content = f.read()
+        content = (scripts_dir / f"rpc-services/{rpc}").read_text(encoding="utf-8")
 
         # change scripts_dir location
         content = content.replace(
             'scripts_dir="/usr/local/lib/qubes-builder-github"',
-            f'scripts_dir="{workdir}/qubes-builder-github"',
+            f'scripts_dir="{tmpdir}/qubes-builder-github"',
         )
 
         # wait for processes, set scripts dir and config file
         content = content.replace(
             '"$scripts_dir/github-command.py"',
-            f'"$scripts_dir/github-command.py" --wait --scripts-dir {scripts_dir} --config-file {workdir / "builders.list"} --local-log-file {logfile}',
+            f'"$scripts_dir/github-command.py" --wait --scripts-dir {scripts_dir} --config-file {tmpdir / "builders.list"} --local-log-file {logfile}',
         )
 
         # Use local keyring for trusted keys for commands
         content = content.replace(
             'keyring_path="$HOME/.config/qubes-builder-github/trusted-keys-for-commands.gpg"',
-            f'keyring_path="{workdir}/trusted-keys-for-commands.gpg"',
+            f'keyring_path="{tmpdir}/trusted-keys-for-commands.gpg"',
         )
 
-        with open(scripts_dir / f"rpc-services/{rpc}", "w") as f:
-            f.write(content)
+        (scripts_dir / f"rpc-services/{rpc}").write_text(content, encoding="utf-8")
 
 
 def generate_signed_upload_component_command(env, repository="current"):

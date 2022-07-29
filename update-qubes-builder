@@ -7,12 +7,15 @@ if [ "$DEBUG" == 1 ]; then
     set -x
 fi
 
+keyring_path="$HOME/.config/qubes-builder-github/builder-maintainers-keyring"
+
 usage() {
     echo "Usage: $0 builder-dir" >&2
 }
 
 verify_git_obj() {
     local content newsig_number
+    export GNUPGHOME="$keyring_path"
     content=$(git -c gpg.program=gpg -c gpg.minTrustLevel=fully "verify-$1" --raw -- "$2" 2>&1 >/dev/null) &&
         newsig_number=$(printf %s\\n "$content" | grep -c '^\[GNUPG:] NEWSIG') &&
         [ "$newsig_number" = 1 ] && {
@@ -20,7 +23,6 @@ verify_git_obj() {
             grep '^\[GNUPG:] TRUST_\(FULLY\|ULTIMATE\) 0 pgp$' >/dev/null
     }
 }
-
 
 if [ $# -lt 1 ]; then
     usage
