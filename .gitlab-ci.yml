@@ -4,7 +4,7 @@ stages:
 variables:
   DEBUG: "1"
 
-pytest:
+.pytest:
   stage: test
   tags:
     - qubes
@@ -13,10 +13,24 @@ pytest:
       - results
   before_script:
     - sudo dnf install -y python3-pathspec sequoia-sqv
-  script:
-    - TMPDIR=~ pytest-3 -vvv --color=yes tests/
   after_script:
     - sudo rm -rf $CI_PROJECT_DIR/results
     - mkdir $CI_PROJECT_DIR/results
-    - cp -r ~/pytest-current/github-current/*.log $CI_PROJECT_DIR/results || true
-    - cp -r ~/pytest-current/github-current/builder-github-logs $CI_PROJECT_DIR/results/
+    - cp -r ~/pytest-of-user/pytest-current/github-current/*.log $CI_PROJECT_DIR/results || true
+    - cp -r ~/pytest-of-user/pytest-current/github-current/builder-github-logs $CI_PROJECT_DIR/results/
+
+
+test_action:
+  extends: .pytest
+  script:
+    - TMPDIR=~ pytest-3 -vvv --color=yes tests/test_action.py
+
+test_command:
+  extends: .pytest
+  script:
+    - TMPDIR=~ pytest-3 -vvv --color=yes tests/test_command.py
+
+test_rpc:
+  extends: .pytest
+  script:
+    - TMPDIR=~ pytest-3 -vvv --color=yes tests/test_rpc.py
