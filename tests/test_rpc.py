@@ -53,12 +53,12 @@ def fix_scripts_dir(tmpdir, logfile, env=None):
     os.chmod(builder_maintainers_keyring, 0o700)
 
     # Use local keyring for trusted keys for updating builders
-    content = (scripts_dir / "update-qubes-builder").read_text(encoding="utf-8")
+    content = (scripts_dir / "utils/update-qubes-builder").read_text(encoding="utf-8")
     content = content.replace(
         'keyring_path="$HOME/.config/qubes-builder-github/builder-maintainers-keyring"',
         f'keyring_path="{tmpdir}/builder-maintainers-keyring"',
     )
-    (scripts_dir / "update-qubes-builder").write_text(content, encoding="utf-8")
+    (scripts_dir / "utils/update-qubes-builder").write_text(content, encoding="utf-8")
 
     # change config_file location
     content = (scripts_dir / "lib/functions.sh").read_text(encoding="utf-8")
@@ -142,7 +142,7 @@ def generate_signed_upload_template_command(
 def _parse_command(tmpdir, env, signed_command):
     subprocess.run(
         [
-            str(tmpdir / "qubes-builder-github/lib/parse-command"),
+            str(tmpdir / "qubes-builder-github/utils/parse-command"),
             str(tmpdir / "command"),
             str(tmpdir / "command.sig"),
         ],

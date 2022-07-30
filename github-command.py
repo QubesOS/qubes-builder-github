@@ -152,7 +152,7 @@ def main():
         str(scripts_dir / "builder.lock"),
         "bash",
         "-c",
-        f"trap 'rm -f /tmp/update-qubes-builder' EXIT && cp {str(scripts_dir / 'update-qubes-builder')} /tmp && /tmp/update-qubes-builder {str(scripts_dir)}",
+        f"trap 'rm -f /tmp/update-qubes-builder' EXIT && cp {str(scripts_dir / 'utils/update-qubes-builder')} /tmp && /tmp/update-qubes-builder {str(scripts_dir)}",
     ]
     if not args.no_builders_update:
         run_command(cmd, wait=args.wait)
@@ -179,7 +179,7 @@ def main():
             "flock",
             "-x",
             str(builder_dir / "builder.lock"),
-            str(scripts_dir / "update-qubes-builder"),
+            str(scripts_dir / "utils/update-qubes-builder"),
             str(builder_dir),
         ]
         if not args.no_builders_update:
