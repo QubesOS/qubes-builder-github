@@ -4,6 +4,7 @@ import re
 import sys
 import traceback
 from pathlib import Path
+from argparse import ArgumentParser
 
 import yaml
 from jinja2 import Template
@@ -54,7 +55,7 @@ table { border-collapse: collapse; }
 {%- for template, template_status in status[release].get("template", {}).items() %}
           <tr>
             <td>{{template}}</td><td>{{template_status["tag"]}}</td>
-{%- for repo in template_status["status"] %}
+{%- for repo in template_status["repo"] %}
             <td class="{{color(repo["name"])}}">{{repo["name"]}}</td>
             <td class="{{color(repo["days"])}}">{{repo["days"]}}</td>
 {%- endfor -%}
@@ -100,65 +101,91 @@ def color(input_string):
     return tag
 
 
-def main(input_dir: Path, output_dir: Path):
-    # component
-    release_component_files = {}  # type: ignore
-    for f in input_dir.glob("builder-*-status-component.yml"):
-        release = re.match(r".*builder-(.*)-.*-status-component.yml", str(f))
-        if not release:
-            continue
-        release_component_files.setdefault(release.group(1), [])
-        release_component_files[release.group(1)].append(f)
+def main():
+    parser = ArgumentParser()
+    parser.add_argument("--output-dir")
 
-    # template
-    release_template_files = {}  # type: ignore
-    for f in input_dir.glob("builder-*-status-template.yml"):
-        release = re.match(r".*builder-(.*)-.*-status-template.yml", str(f))
-        if not release:
-            continue
-        release_template_files.setdefault(release.group(1), [])
-        release_template_files[release.group(1)].append(f)
+    input_parser = parser.add_mutually_exclusive_group()
+    input_parser.add_argument("--input-dir")
+    input_parser.add_argument("--use-existing-status-yaml-file")
 
-    status = {}  # type: ignore
+    args = parser.parse_args()
 
-    for release in list(release_component_files.keys()) + list(
-        release_template_files.keys()
-    ):
-        status.setdefault(release, {"component": {}, "template": {}})
+    if not args.input_dir and not args.use_existing_status_yaml_file:
+        raise ValueError("Please provide either input directory or status.yml file.")
 
-    for release in release_component_files:
-        for f in release_component_files[release]:
-            content = yaml.safe_load(f.read_text())
-            for component in content:
-                for distribution in content[component]:
-                    status[release]["component"].setdefault(distribution, {})
-                    status[release]["component"][distribution][component] = content[
-                        component
-                    ][distribution]
+    if args.input_dir:
+        input_dir = Path(args.input_dir).expanduser().resolve()
+    else:
+        input_dir = None
 
-    for release in release_template_files:
-        for f in release_template_files[release]:
-            content = yaml.safe_load(f.read_text())
-            for template in content:
-                status[release]["template"][template] = content[template]
+    if args.use_existing_status_yaml_file:
+        status = yaml.safe_load(
+            Path(args.use_existing_status_yaml_file).expanduser().resolve().read_text()
+        )
+    else:
+        status = {}
 
+    if not args.output_dir:
+        raise ValueError("Please provide output directory.")
+
+    output_dir = Path(args.output_dir).expanduser().resolve()
+
+    if input_dir:
+        # component
+        release_component_files = {}  # type: ignore
+        for f in input_dir.glob("builder-*-status-component.yml"):
+            release = re.match(r".*builder-(.*)-.*-status-component.yml", str(f))
+            if not release:
+                continue
+            release_component_files.setdefault(release.group(1), [])
+            release_component_files[release.group(1)].append(f)
+
+        # template
+        release_template_files = {}  # type: ignore
+        for f in input_dir.glob("builder-*-status-template.yml"):
+            release = re.match(r".*builder-(.*)-.*-status-template.yml", str(f))
+            if not release:
+                continue
+            release_template_files.setdefault(release.group(1), [])
+            release_template_files[release.group(1)].append(f)
+
+        for release in list(release_component_files.keys()) + list(
+            release_template_files.keys()
+        ):
+            status.setdefault(release, {"component": {}, "template": {}})
+
+        for release in release_component_files:
+            for f in release_component_files[release]:
+                content = yaml.safe_load(f.read_text())
+                for component in content:
+                    for distribution in content[component]:
+                        status[release]["component"].setdefault(distribution, {})
+                        status[release]["component"][distribution][component] = content[
+                            component
+                        ][distribution]
+
+        for release in release_template_files:
+            for f in release_template_files[release]:
+                content = yaml.safe_load(f.read_text())
+                for template in content:
+                    status[release]["template"][template] = content[template]
+
+        with open(output_dir / "status.yml", "w") as fd:
+            fd.write(yaml.dump(status))
+
+    # render HTML
     template = Template(HTML_TEMPLATE)
     template.globals.update(color=color)
     html = template.render(status=status)
 
-    with open(output_dir / "status.yml", "w") as f:
-        f.write(yaml.dump(status))
-
-    with open(output_dir / "status.html", "w") as f:
-        f.write(html)
+    with open(output_dir / "status.html", "w") as fd:
+        fd.write(html)
 
 
 if __name__ == "__main__":
     try:
-        main(
-            Path(sys.argv[1]).expanduser().resolve(),
-            Path(sys.argv[2]).expanduser().resolve(),
-        )
+        main()
     except Exception as e:
         traceback.print_exc()
         sys.exit(1)

@@ -40,4 +40,4 @@ execute_in_each_builder check_release_status
 wait
 
 scp "$status_templates_dir"/status-*.html "$scripts_dir"/utils/combine-status.py "$HOST:status/"
-ssh "$HOST" status/combine-status.py status/ public_html/
+ssh "$HOST" status/combine-status.py --input-dir status/ --output-dir public_html/
