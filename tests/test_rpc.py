@@ -81,7 +81,11 @@ def fix_scripts_dir(tmpdir, logfile, env=None):
         # wait for processes, set scripts dir and config file
         content = content.replace(
             '"$scripts_dir/github-command.py"',
-            f'"$scripts_dir/github-command.py" --wait --scripts-dir {scripts_dir} --config-file {tmpdir / "builders.list"} --local-log-file {logfile}',
+            f'"$scripts_dir/github-command.py" '
+            f"--wait --scripts-dir {scripts_dir} "
+            f'--config-file {tmpdir / "builders.list"} '
+            f"--local-log-file {logfile} "
+            f"--no-builders-update",
         )
 
         # Use local keyring for trusted keys for commands
