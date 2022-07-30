@@ -48,6 +48,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--log-basename")
     parser.add_argument(
+        "--no-builders-update",
+        action="store_true",
+        default=False,
+        help="Don't update builders.",
+    )
+    parser.add_argument(
         "--wait",
         action="store_true",
         default=False,
@@ -148,7 +154,8 @@ def main():
         "-c",
         f"trap 'rm -f /tmp/update-qubes-builder' EXIT && cp {str(scripts_dir / 'update-qubes-builder')} /tmp && /tmp/update-qubes-builder {str(scripts_dir)}",
     ]
-    run_command(cmd, wait=args.wait)
+    if not args.no_builders_update:
+        run_command(cmd, wait=args.wait)
 
     with open(args.config_file, "r") as f:
         content = f.read().splitlines()
@@ -175,7 +182,8 @@ def main():
             str(scripts_dir / "update-qubes-builder"),
             str(builder_dir),
         ]
-        run_command(cmd, wait=args.wait)
+        if not args.no_builders_update:
+            run_command(cmd, wait=args.wait)
 
         # Prepare github-action
         github_action_cmd = [str(scripts_dir / "github-action.py")]
