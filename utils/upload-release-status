@@ -27,10 +27,12 @@ fi
 ssh "$HOST" mkdir -p status
 
 check_release_status() {
-    tmp_output="/tmp/${2##*/}-$(hostname)-status.yml"
+    tmp_output_component="/tmp/${2##*/}-$(hostname)-status-component.yml"
+    tmp_output_template="/tmp/${2##*/}-$(hostname)-status-template.yml"
     cd "$2"
-    ./qb repository check-release-status-component > "$tmp_output"
-    scp "$tmp_output" "$HOST:status/"
+    ./qb repository check-release-status-component > "$tmp_output_component"
+    ./qb repository check-release-status-template > "$tmp_output_template"
+    scp "$tmp_output_component" "$tmp_output_template" "$HOST:status/"
 }
 
 execute_in_each_builder check_release_status

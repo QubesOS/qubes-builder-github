@@ -33,23 +33,36 @@ table { border-collapse: collapse; }
   <body>
 {%- for release in status.keys() -%}
     <h1>Release {{release}}</h1>
-{%- for distribution in status[release].keys() %}
+
+{%- for distribution in status[release].get("component", {}).keys() %}
       <h2>Packages for <span class="dist">{{distribution}}</span></h2>
         <table><tr><th>Component</th><th>Version</th><th>Status</th></tr>
-{%- for component, component_status in status[release][distribution].items() -%}
+{%- for component, component_status in status[release]["component"][distribution].items() -%}
           <tr>
             <td>{{component}}</td><td>{{component_status["tag"]}}</td>
-{%- if component_status["status"] is iterable and (component_status["status"] is not string and component_status["status"] is not mapping) %}
-{%- for repo in component_status["status"] %}
-            <td class="{{color(repo["repo"])}}">{{repo["repo"]}}</td>
+{%- for repo in component_status["repo"] %}
+            <td class="{{color(repo["name"])}}">{{repo["name"]}}</td>
+            <td class="{{color(repo["days"])}}">{{repo["days"]}}</td>
+{%- endfor -%} {# repo #}
+          </tr>
+{%- endfor %} {# component #}
+        </table>
+{%- endfor -%} {# distribution #}
+
+      <h2>Templates</h2>
+        <table><tr><th>Template name</th><th>Version</th><th>Status</th></tr>
+{%- for template, template_status in status[release].get("template", {}).items() %}
+          <tr>
+            <td>{{template}}</td><td>{{template_status["tag"]}}</td>
+{%- for repo in template_status["status"] %}
+            <td class="{{color(repo["name"])}}">{{repo["name"]}}</td>
             <td class="{{color(repo["days"])}}">{{repo["days"]}}</td>
 {%- endfor -%}
-{%- endif -%}
           </tr>
-{%- endfor %}
+{%- endfor -%} {# template #}
         </table>
-{%- endfor -%}
-{%- endfor -%}
+
+{%- endfor -%} {# release #}
   </body>
 </html>
 """
@@ -88,25 +101,46 @@ def color(input_string):
 
 
 def main(input_dir: Path, output_dir: Path):
-    release_files = {}  # type: ignore
-    for f in input_dir.glob("builder-*-status.yml"):
-        release = re.match(r".*builder-(.*)-.*-status.yml", str(f))
+    # component
+    release_component_files = {}  # type: ignore
+    for f in input_dir.glob("builder-*-status-component.yml"):
+        release = re.match(r".*builder-(.*)-.*-status-component.yml", str(f))
         if not release:
             continue
-        release_files.setdefault(release.group(1), [])
-        release_files[release.group(1)].append(f)
+        release_component_files.setdefault(release.group(1), [])
+        release_component_files[release.group(1)].append(f)
+
+    # template
+    release_template_files = {}  # type: ignore
+    for f in input_dir.glob("builder-*-status-template.yml"):
+        release = re.match(r".*builder-(.*)-.*-status-template.yml", str(f))
+        if not release:
+            continue
+        release_template_files.setdefault(release.group(1), [])
+        release_template_files[release.group(1)].append(f)
 
     status = {}  # type: ignore
-    for release in release_files:
-        for f in release_files[release]:
+
+    for release in list(release_component_files.keys()) + list(
+        release_template_files.keys()
+    ):
+        status.setdefault(release, {"component": {}, "template": {}})
+
+    for release in release_component_files:
+        for f in release_component_files[release]:
             content = yaml.safe_load(f.read_text())
             for component in content:
                 for distribution in content[component]:
-                    status.setdefault(release, {})
-                    status[release].setdefault(distribution, {})
-                    status[release][distribution][component] = content[component][
-                        distribution
-                    ]
+                    status[release]["component"].setdefault(distribution, {})
+                    status[release]["component"][distribution][component] = content[
+                        component
+                    ][distribution]
+
+    for release in release_template_files:
+        for f in release_template_files[release]:
+            content = yaml.safe_load(f.read_text())
+            for template in content:
+                status[release]["template"][template] = content[template]
 
     template = Template(HTML_TEMPLATE)
     template.globals.update(color=color)
