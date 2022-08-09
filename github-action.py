@@ -38,6 +38,7 @@ import time
 import traceback
 from contextlib import contextmanager
 from pathlib import Path
+from typing import List
 
 from qubesbuilder.cli.cli_package import _component_stage
 from qubesbuilder.cli.cli_template import _template_stage
@@ -237,18 +238,18 @@ class AutoAction(BaseAutoAction):
                 distributions=[dist],
             )
 
-    def publish_and_upload(self, repository_publish: str):
+    def publish_and_upload(self, repository_publish: str, distributions: List):
         _publish(
             config=self.config,
             repository_publish=repository_publish,
             components=self.components,
-            distributions=self.distributions,
+            distributions=distributions,
             templates=[],
         )
         _upload(
             config=self.config,
             repository_publish=repository_publish,
-            distributions=self.distributions,
+            distributions=distributions,
             templates=[],
         )
 
@@ -421,10 +422,27 @@ class AutoAction(BaseAutoAction):
             raise AutoActionError(
                 f"Source have changed in the meantime (current: {actual_commit_sha})"
             )
-        self.make_with_log(
-            self.publish_and_upload,
-            self.repository_publish,
-        )
+        for dist in self.distributions:
+            try:
+                upload_log_file = self.make_with_log(
+                    self.publish_and_upload, self.repository_publish, [dist]
+                )
+                self.notify_upload_status(dist, upload_log_file)
+            except AutoActionError as autobuild_exc:
+                self.notify_build_status(
+                    dist, "failed", log_file=autobuild_exc.log_file
+                )
+                pass
+            except TimeoutError as timeout_exc:
+                raise AutoActionTimeout("Timeout reached for upload!") from timeout_exc
+            except Exception as exc:
+                self.notify_build_status(
+                    dist,
+                    "failed",
+                    additional_info=f"Internal error: '{str(exc.__class__.__name__)}'",
+                )
+                log.error(str(exc))
+                pass
 
 
 class AutoActionTemplate(BaseAutoAction):
@@ -650,10 +668,11 @@ class AutoActionTemplate(BaseAutoAction):
                 f"Different template was built in the meantime (current: {TEMPLATE_VERSION}-{timestamp_existing})"
             )
         try:
-            self.make_with_log(
+            upload_log_file = self.make_with_log(
                 self.publish_and_upload,
                 self.repository_publish,
             )
+            self.notify_upload_status(upload_log_file)
         except AutoActionError as autobuild_exc:
             self.notify_build_status("failed", log_file=autobuild_exc.log_file)
             pass

@@ -56,8 +56,8 @@ table { border-collapse: collapse; }
           <tr>
             <td>{{template}}</td><td>{{template_status["tag"]}}</td>
 {%- for repo in template_status["repo"] %}
-            <td class="{{color(repo["name"], status["min_age_days"])}}">{{repo["name"]}}</td>
-            <td class="{{color(repo["days"], status["min_age_days"])}}">{{repo["days"]}}</td>
+            <td class="{{color(repo["name"], repo["min_age_days"])}}">{{repo["name"]}}</td>
+            <td class="{{color(repo["days"], repo["min_age_days"])}}">{{repo["days"]}}</td>
 {%- endfor -%}
           </tr>
 {%- endfor -%} {# template #}
@@ -104,20 +104,11 @@ def color(input_string, min_age_days=5):
 def main():
     parser = ArgumentParser()
     parser.add_argument("--output-dir")
-    parser.add_argument(
-        "--days",
-        action="store",
-        type=int,
-        default=5,
-        help="ensure package at least this time in testing (default: %(default)d)",
-    )
     input_parser = parser.add_mutually_exclusive_group()
     input_parser.add_argument("--input-dir")
     input_parser.add_argument("--use-existing-status-yaml-file")
 
     args = parser.parse_args()
-
-    min_age_days = args.days
 
     if not args.input_dir and not args.use_existing_status_yaml_file:
         raise ValueError("Please provide either input directory or status.yml file.")
@@ -180,8 +171,6 @@ def main():
                     status[release]["template"][template] = content[template]
 
         # Global minimum age days for stable.
-        # FIXME: maybe in the future we would refine it per repository?
-        status["min_age_days"] = min_age_days
 
         with open(output_dir / "status.yml", "w") as fd:
             fd.write(yaml.dump(status))
