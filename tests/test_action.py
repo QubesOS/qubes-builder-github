@@ -60,7 +60,7 @@ def test_action_build_component(workdir):
 def _build_component_check(tmpdir):
     assert (
         tmpdir
-        / f"artifacts/components/app-linux-split-gpg/2.0.60-1/host-fc32/publish/gpg-split-dom0.publish.yml"
+        / f"artifacts/components/app-linux-split-gpg/2.0.60-1/host-fc32/publish/rpm_spec_gpg-split-dom0.spec.publish.yml"
     ).exists()
 
     assert (
@@ -70,7 +70,7 @@ def _build_component_check(tmpdir):
 
     assert (
         tmpdir
-        / f"artifacts/components/app-linux-split-gpg/2.0.60-1/vm-fc36/publish/gpg-split.publish.yml"
+        / f"artifacts/components/app-linux-split-gpg/2.0.60-1/vm-fc36/publish/rpm_spec_gpg-split.spec.publish.yml"
     ).exists
 
 
@@ -120,7 +120,7 @@ def _fix_timestamp_repo(tmpdir):
         if distribution == "host-fc32":
             artifacts_path = (
                 tmpdir
-                / f"artifacts/components/app-linux-split-gpg/2.0.60-1/{distribution}/publish/gpg-split-dom0.publish.yml"
+                / f"artifacts/components/app-linux-split-gpg/2.0.60-1/{distribution}/publish/rpm_spec_gpg-split-dom0.spec.publish.yml"
             )
         elif distribution == "vm-bullseye":
             artifacts_path = (
@@ -130,7 +130,7 @@ def _fix_timestamp_repo(tmpdir):
         else:
             artifacts_path = (
                 tmpdir
-                / f"artifacts/components/app-linux-split-gpg/2.0.60-1/{distribution}/publish/gpg-split.publish.yml"
+                / f"artifacts/components/app-linux-split-gpg/2.0.60-1/{distribution}/publish/rpm_spec_gpg-split.spec.publish.yml"
             )
         info = yaml.safe_load(artifacts_path.read())
 
