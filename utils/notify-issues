@@ -64,6 +64,7 @@ class NotifyIssueCli:
         dist: QubesDistribution,
         message_templates_dir: Path,
         github_report_repo_name: str,
+        min_age_days: int
     ):
         self.token = token
         self.release_name = release_name
@@ -72,6 +73,7 @@ class NotifyIssueCli:
         self.dist = dist
         self.message_templates_dir = message_templates_dir
         self.github_report_repo_name = github_report_repo_name
+        self.min_age_days = min_age_days
         self.gi = Github(self.token)
 
     def get_current_commit(self):
@@ -242,6 +244,7 @@ class NotifyIssueCli:
                 message_template.replace("@COMPONENT@", component)
                 .replace("@RELEASE_NAME@", release)
                 .replace("@VERSION@", version)
+                .replace("@MIN_AGE_DAY", str(self.min_age_days))
             )
 
             if message_template_kwargs is not None:
@@ -491,7 +494,13 @@ def main():
     parser.add_argument("--message-templates-dir", help="Message templates directory")
     parser.add_argument("--github-report-repo-name", help="Github repository to report")
     parser.add_argument("--additional-info", help="Add additional info on comment")
-
+    parser.add_argument(
+        "--days",
+        action="store",
+        type=int,
+        default=5,
+        help="ensure package at least this time in testing (default: %(default)d)",
+    )
     subparsers = parser.add_subparsers(help="command")
 
     # Upload status parser
@@ -570,6 +579,7 @@ def main():
         dist=dist,
         github_report_repo_name=github_report_repo_name,
         message_templates_dir=message_templates_dir,
+        min_age_days=args.days
     )
 
     if dist.package_set == "host":

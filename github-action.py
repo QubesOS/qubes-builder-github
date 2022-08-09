@@ -260,6 +260,7 @@ class AutoAction(BaseAutoAction):
     def notify_build_status(self, dist, status, log_file=None, additional_info=None):
         notify_issues_cmd = [
             f"{str(PROJECT_PATH)}/utils/notify-issues",
+            f"--days={self.config.get('min-age-days', 5)}",
             f"--message-templates-dir={str(PROJECT_PATH)}/templates",
         ]
 
@@ -289,6 +290,7 @@ class AutoAction(BaseAutoAction):
     def notify_upload_status(self, dist, log_file=None, additional_info=None):
         notify_issues_cmd = [
             f"{str(PROJECT_PATH)}/utils/notify-issues",
+            f"--days={self.config.get('min-age-days', 5)}",
             f"--message-templates-dir={str(PROJECT_PATH)}/templates",
         ]
 
@@ -490,6 +492,7 @@ class AutoActionTemplate(BaseAutoAction):
     def notify_build_status(self, status, log_file=None, additional_info=None):
         notify_issues_cmd = [
             f"{str(PROJECT_PATH)}/utils/notify-issues",
+            f"--days={self.config.get('min-age-days', 5)}",
             f"--message-templates-dir={str(PROJECT_PATH)}/templates",
         ]
 
@@ -522,6 +525,7 @@ class AutoActionTemplate(BaseAutoAction):
     def notify_upload_status(self, log_file=None, additional_info=None):
         notify_issues_cmd = [
             f"{str(PROJECT_PATH)}/utils/notify-issues",
+            f"--days={self.config.get('min-age-days', 5)}",
             f"--message-templates-dir={str(PROJECT_PATH)}/templates",
         ]
 
