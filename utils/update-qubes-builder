@@ -54,3 +54,4 @@ if ! verify_git_obj commit FETCH_HEAD; then
     exit 1
 fi
 git merge --ff-only FETCH_HEAD
+git submodule update --init --recursive
