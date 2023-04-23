@@ -42,13 +42,13 @@ RPC services configuration
 RPC services are configured differently, because are not running from within
 qubes-builder, so don't know where to look for `builder.conf`. Instead, it look
 into `~/.config/qubes-builder-github/builders.list`. The file have a simple
-`key=value` syntax, where key is Qubes release (like `r3.2`) and value is a
+`key=value` syntax, where key is Qubes release (like `r4.2`) and value is a
 full path to qubes-builder directory.
 
 Example configuration:
 
-    r3.2=/home/user/qubes-builder-r3.2
-    r3.1=/home/user/qubes-builder-r3.1
+    r4.2=/home/USERNAME/qubes-builder-r4.2
+    r4.1=/home/USERNAME/qubes-builder-r4.1
 
 In addition to this,
 `~/.config/qubes-builder-github/trusted-keys-for-commands.gpg` contains a
@@ -86,13 +86,13 @@ Parameters:
   - `commit_sha` - commit SHA of that component; the command is considered only
     if packages recently uploaded (or precisely: local git repository state)
     matches this commit; this is mainly to prevent replay attacks
-  - `release_name` - name of release, like `r3.2`; must match name used in
+  - `release_name` - name of release, like `r4.1`; must match name used in
     `builders.list` configuration and name used in updates repositories
     (apt/yum/...)
   - `dists` - optional list of distributions to which upload should be limited;
     this should be a (space separated) list of pairs `dom0`/`vm` and distribution
-    codename (like `fc25`), separated with `-`; for example `dom0-fc23` or
-    `vm-jessie`.
+    codename (like `fc37`), separated with `-`; for example `dom0-fc32` or
+    `vm-bullseye`.
 
 Command needs to be signed with key for which public part is in
 `~/.config/qubes-builder-github/trusted-keys-for-commands.gpg` keyring.
@@ -108,7 +108,7 @@ consists of one line in form:
 
 Parameters:
 
-  - `release_name` - name of release, like `r3.2`; must match name used in
+  - `release_name` - name of release, like `r4.2`; must match name used in
     `builders.list` configuration and name used in updates repositories
     (apt/yum/...)
   - `dist` - template code name, as defined in builder.conf, `DISTS_VM` option;

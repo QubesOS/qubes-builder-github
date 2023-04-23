@@ -25,6 +25,7 @@ import logging
 import importlib
 import hmac
 import hashlib
+import pwd
 
 from flask import Flask, jsonify, request, Response
 
@@ -58,8 +59,10 @@ def read_config():
       ]
     }
     """
+    homedir = pwd.getpwuid(os.getuid()).pw_dir
+    assert homedir.startswith("/"), "bad home directory?"
     config_path = os.environ.get('WEBHOOKS_CONFIG',
-                                 '/home/user/webhooks/webhooks.conf')
+                                 pw_dir + '/webhooks/webhooks.conf')
     with open(config_path, 'r') as cfd:
         conf = json.loads(cfd.read())
 
