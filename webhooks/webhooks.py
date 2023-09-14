@@ -62,7 +62,7 @@ def read_config():
     homedir = pwd.getpwuid(os.getuid()).pw_dir
     assert homedir.startswith("/"), "bad home directory?"
     config_path = os.environ.get('WEBHOOKS_CONFIG',
-                                 pw_dir + '/webhooks/webhooks.conf')
+                                 homedir + '/webhooks/webhooks.conf')
     with open(config_path, 'r') as cfd:
         conf = json.loads(cfd.read())
 
