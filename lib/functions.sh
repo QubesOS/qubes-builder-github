@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash --
 
 ###
 ### Common setup
@@ -85,20 +85,22 @@ read_stdin_command_and_verify_signature() {
     # must do the same here for signature verification. This is stupid.
     head -c -1 "$tmpdir/untrusted_command.tmp" > "$tmpdir/untrusted_command"
 
-    if ! gpgv2 --keyring "$local_keyring_path" \
-            --status-fd=3 \
+    if ! sqv --keyring "$local_keyring_path" \
+            -- \
             "$tmpdir/untrusted_command.sig" \
             "$tmpdir/untrusted_command" \
-            3>"$tmpdir/gpg-status"; then
+            >"$tmpdir/gpg-status"; then
         echo "Invalid signature" >&2
         exit 1
     fi
 
     # extract signer fingerprint
     if [ -n "$local_signer" ]; then
-        eval "$local_signer"="$(grep -Po \
-            '^\[GNUPG:\] VALIDSIG (([0-9A-F-]+ ){9}|)\K([0-9A-F]*)' \
-            "$tmpdir/gpg-status")"
+        read -r -- "$local_signer" < "$tmpdir/gpg-status"
+        if ! [[ "${!local_signer}" =~ ^[A-F0-9]{40}$ ]]; then
+            echo 'Bad fingerprint from sqv' >&2
+            exit 1
+        fi
     fi
     rm -f "$tmpdir/gpg-status"
 
