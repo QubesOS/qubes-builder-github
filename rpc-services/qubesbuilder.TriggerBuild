@@ -20,6 +20,7 @@ log_basename="$HOME/builder-github-logs/$(date +%s)-$$"
 exec >>"${log_basename}.log" 2>&1
 
 # validate component name - forbid '/', '.' and space
+# note that component name is already somewhat validated by qrexec
 case "${untrusted_component_name}" in
     *[/.\ ]*)
         echo "Forbidden character" >&2

@@ -43,12 +43,22 @@ read_stdin_command_and_verify_signature() {
 
     # this will read from standard input of the service, the data should be
     # considered untrusted
-    tr -d '\r' | awk -b \
+    LC_ALL=C head -c 4096 |
+    LC_ALL=C tr '\000\002' '\001\001' |
+    LC_ALL=C awk -b \
+            -F $'\002' \
             -v in_command=0 \
             -v in_signature=0 \
-            -v output_data="$tmpdir/untrusted_command.tmp" \
+            -v command_too_long=0 \
+            -v output_data="$tmpdir/untrusted_command" \
             -v output_sig="$tmpdir/untrusted_command.sig" \
             '
+        function fail(msg) {
+            print msg > "/dev/stderr"
+            exit 1
+        }
+        length($0) > 256 { fail("line too long"); }
+        /[^A-Za-z0-9_.+/ -]/ { fail("junk character in string"); }
         /^-----BEGIN PGP SIGNED MESSAGE-----$/ {
             # skip first 3 lines (this one, hash declaration and empty line)
             in_command=4
@@ -64,26 +74,34 @@ read_stdin_command_and_verify_signature() {
             }
         }
         {
-            if (in_command) print >output_data
+            if (in_command) {
+                if (command_too_long) {
+                    fail("extra lines in command")
+                } else if (/^[A-Za-z0-9_. -]+$/) {
+                    # gpg --clearsign apparently ignore trailing newline while
+                    # calculating hash. So must do the same here for signature
+                    # verification. This is stupid.
+                    printf "%s", $0 >output_data;
+                    command_too_long = 1;
+                } else {
+                    fail("Bad character in command");
+                }
+            }
             if (in_signature) print >output_sig
         }
         /^-----END PGP SIGNATURE-----$/ {
-            in_signature=0
+            exit
         }
     '
 
     # make sure we don't read anything else from stdin
     exec </dev/null
 
-    if [ ! -r "$tmpdir/untrusted_command.tmp" ] || \
+    if [ ! -r "$tmpdir/untrusted_command" ] || \
             [ ! -r "$tmpdir/untrusted_command.sig" ]; then
         echo "Missing parts of gpg signature" >&2
         exit 1
     fi
-
-    # gpg --clearsign apparently ignore trailing newline while calculating hash. So
-    # must do the same here for signature verification. This is stupid.
-    head -c -1 "$tmpdir/untrusted_command.tmp" > "$tmpdir/untrusted_command"
 
     if ! gpgv2 --keyring "$local_keyring_path" \
             --status-fd=3 \
@@ -96,9 +114,9 @@ read_stdin_command_and_verify_signature() {
 
     # extract signer fingerprint
     if [ -n "$local_signer" ]; then
-        eval "$local_signer"="$(grep -Po \
+        eval "$local_signer"="'$(grep -Po \
             '^\[GNUPG:\] VALIDSIG (([0-9A-F-]+ ){9}|)\K([0-9A-F]*)' \
-            "$tmpdir/gpg-status")"
+            "$tmpdir/gpg-status")'"
     fi
     rm -f "$tmpdir/gpg-status"
 

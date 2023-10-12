@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash --
 
 # Service called from network-exposed VM (probably sys-net) into actual build
 # VM to (potentially) trigger moving packages from current-testing to current
@@ -16,7 +16,7 @@
 #
 # See README.md for detailed description.
 
-set -e
+set -eo pipefail
 
 keyring_path="$HOME/.config/qubes-builder-github/trusted-keys-for-commands.gpg"
 
